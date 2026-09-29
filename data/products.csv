@@ -1,0 +1,11 @@
+product_id,product_name,category,description,price_kes,stock_quantity,delivery_days
+P001,Office Chair,Furniture,Ergonomic office chair,8500,50,3
+P002,Office Desk,Furniture,120cm office desk,15000,30,5
+P003,Laptop Stand,Accessories,Adjustable laptop stand,4500,40,2
+P004,Office Cabinet,Furniture,Metal office storage cabinet,18000,20,5
+P005,Visitor Chair,Furniture,Comfortable visitor chair,5500,60,3
+P006,Executive Desk,Furniture,Large executive office desk,35000,15,7
+P007,Monitor Stand,Accessories,Adjustable monitor stand,3500,35,2
+P008,Keyboard,Accessories,Wireless office keyboard,2800,45,2
+P009,Wireless Mouse,Accessories,Wireless computer mouse,1800,70,2
+P010,Meeting Table,Furniture,Large meeting room table,45000,10,7

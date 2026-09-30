@@ -220,39 +220,32 @@ This is a **simulation for the AI capstone** and does not connect to the real M-
 The system uses a supervisor-based multi-agent architecture implemented with LangGraph.
 
 ```text
-                         CUSTOMER
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │   SUPERVISOR  │
-                    │     AGENT     │
-                    └───────┬───────┘
-                            │
-          ┌─────────────────┼─────────────────┐
-          │                 │                 │
-          ▼                 ▼                 ▼
-     ┌─────────┐       ┌─────────┐       ┌─────────┐
-     │ SUPPORT │       │  SALES  │       │  ORDER  │
-     │  AGENT  │       │  AGENT  │       │  AGENT  │
-     └────┬────┘       └────┬────┘       └────┬────┘
-          │                 │                 │
-          ▼                 ▼                 ▼
-        RAG             PRODUCTS           ORDERS
-      KNOWLEDGE        QUOTATIONS         VALIDATION
-        BASE
-                            │
-                            │
-                            ▼
-                     ┌─────────────┐
-                     │   INVOICE   │
-                     │    AGENT    │
-                     └──────┬──────┘
-                            │
-                            ▼
-                     ┌─────────────┐
-                     │   PAYMENT   │
-                     │    AGENT    │
-                     └─────────────┘
+                                                KENYABIZ AI
+                              │
+                              ▼
+                     ┌────────────────┐
+                     │   Supervisor   │
+                     └───────┬────────┘
+                             │
+          ┌──────────────────┼─────────────────┐
+          │                  │                 │
+          ▼                  ▼                 ▼
+      Support              Sales             Order
+        Agent              Agent             Agent
+          │                  │                 │
+        RAG             Quotation           SQLite
+          │                  │                 │
+          └──────────────────┼─────────────────┘
+                             │
+                             ▼
+                       Invoice Agent
+                             │
+                         ReportLab
+                             │
+                             ▼
+                       Payment Agent
+                             │
+                     Payment Simulator
 ```
 
 ---

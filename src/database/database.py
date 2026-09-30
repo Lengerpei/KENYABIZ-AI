@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from pathlib import Path
 
@@ -8,8 +9,30 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-DATABASE_PATH = PROJECT_ROOT / "data" / "kenyabiz.db"
+DEFAULT_DATABASE_PATH = PROJECT_ROOT / "data" / "kenyabiz.db"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
+
+
+# ============================================================
+# DATABASE PATH
+# ============================================================
+
+def get_database_path():
+    """
+    Return the database path used by the application.
+
+    By default, KenyaBiz uses the normal development database.
+
+    Tests can override this using the KENYABIZ_DATABASE
+    environment variable.
+    """
+
+    configured_path = os.getenv("KENYABIZ_DATABASE")
+
+    if configured_path:
+        return Path(configured_path)
+
+    return DEFAULT_DATABASE_PATH
 
 
 # ============================================================
@@ -21,9 +44,14 @@ def get_connection():
     Create and return a connection to the KenyaBiz SQLite database.
     """
 
-    DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    database_path = get_database_path()
 
-    connection = sqlite3.connect(DATABASE_PATH)
+    database_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    connection = sqlite3.connect(database_path)
 
     connection.row_factory = sqlite3.Row
 
@@ -42,10 +70,17 @@ def initialize_database():
     connection = get_connection()
 
     try:
-        with open(SCHEMA_PATH, "r", encoding="utf-8") as file:
+
+        with open(
+            SCHEMA_PATH,
+            "r",
+            encoding="utf-8",
+        ) as file:
+
             schema = file.read()
 
         connection.executescript(schema)
+
         connection.commit()
 
     finally:
@@ -66,8 +101,8 @@ if __name__ == "__main__":
     initialize_database()
 
     print()
-    print(f"Database created at:")
-    print(DATABASE_PATH)
+    print("Database used:")
+    print(get_database_path())
 
     print()
     print("Database initialization completed successfully.")

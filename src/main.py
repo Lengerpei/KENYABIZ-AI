@@ -13,41 +13,47 @@ class KenyaBizCLI:
 
     def __init__(self):
 
-        # ----------------------------------------------------
+        # ====================================================
         # Conversation state
-        # ----------------------------------------------------
+        # ====================================================
+
         self.conversation_history = []
 
-        # ----------------------------------------------------
+        # ====================================================
         # Active workflow
-        # ----------------------------------------------------
+        # ====================================================
+
         self.pending_request = None
         self.pending_action = None
 
-        # ----------------------------------------------------
+        # ====================================================
         # Customer details
-        # ----------------------------------------------------
+        # ====================================================
+
         self.customer_name = None
         self.customer_phone = None
         self.customer_email = None
 
-        # ----------------------------------------------------
+        # ====================================================
         # Order state
-        # ----------------------------------------------------
+        # ====================================================
+
         self.order_confirmed = False
         self.order_reference = None
         self.order_status = None
 
-        # ----------------------------------------------------
+        # ====================================================
         # Invoice state
-        # ----------------------------------------------------
+        # ====================================================
+
         self.invoice_path = None
 
-        # ----------------------------------------------------
+        # ====================================================
         # Payment state
-        # ----------------------------------------------------
-        self.payment_reference = None
+        # ====================================================
 
+        self.payment_reference = None
+        self.payment_status = None
 
     # ========================================================
     # RESET
@@ -71,7 +77,7 @@ class KenyaBizCLI:
         self.invoice_path = None
 
         self.payment_reference = None
-
+        self.payment_status = None
 
     # ========================================================
     # TEXT NORMALIZATION
@@ -85,7 +91,6 @@ class KenyaBizCLI:
         return " ".join(
             text.lower().strip().split()
         )
-
 
     # ========================================================
     # CONFIRMATION DETECTION
@@ -122,12 +127,14 @@ class KenyaBizCLI:
 
         return normalized in confirmations
 
-
     # ========================================================
     # NEGATIVE CONFIRMATION
     # ========================================================
 
-    def contains_negative_confirmation(self, message):
+    def contains_negative_confirmation(
+        self,
+        message,
+    ):
 
         normalized = self.normalize_text(message)
 
@@ -144,12 +151,14 @@ class KenyaBizCLI:
 
         return normalized in negatives
 
-
     # ========================================================
     # ORDER REQUEST DETECTION
     # ========================================================
 
-    def contains_order_request(self, message):
+    def contains_order_request(
+        self,
+        message,
+    ):
 
         normalized = self.normalize_text(message)
 
@@ -166,23 +175,60 @@ class KenyaBizCLI:
             "i want to buy",
             "i would like to buy",
             "i'd like to buy",
+            "i want",
+            "i would like",
+            "i'd like",
         ]
 
-        return any(
+        product_terms = [
+            "chair",
+            "chairs",
+            "office chair",
+            "office chairs",
+            "desk",
+            "desks",
+            "office desk",
+            "office desks",
+        ]
+
+        has_order_phrase = any(
             phrase in normalized
             for phrase in order_phrases
         )
 
+        has_product = any(
+            product in normalized
+            for product in product_terms
+        )
+
+        return (
+            has_order_phrase
+            and has_product
+        )
 
     # ========================================================
     # INVOICE REQUEST DETECTION
     # ========================================================
 
-    def contains_invoice_request(self, message):
+    def contains_invoice_request(
+        self,
+        message,
+    ):
 
         normalized = self.normalize_text(message)
 
-        invoice_phrases = [
+        invoice_terms = [
+            "invoice",
+            "invoicing",
+            "bill",
+            "billing",
+            "receipt",
+            "my invoice",
+            "the invoice",
+            "i want my invoice",
+            "i need my invoice",
+            "get my invoice",
+            "send my invoice",
             "generate an invoice",
             "generate invoice",
             "create an invoice",
@@ -198,16 +244,18 @@ class KenyaBizCLI:
         ]
 
         return any(
-            phrase in normalized
-            for phrase in invoice_phrases
+            term in normalized
+            for term in invoice_terms
         )
-
 
     # ========================================================
     # PAYMENT REQUEST
     # ========================================================
 
-    def contains_payment_request(self, message):
+    def contains_payment_request(
+        self,
+        message,
+    ):
 
         normalized = self.normalize_text(message)
 
@@ -246,6 +294,9 @@ class KenyaBizCLI:
             "send me the payment request",
             "send payment request",
             "pay now",
+            "mpesa",
+            "m-pesa",
+            "m pesa",
         ]
 
         return any(
@@ -253,12 +304,14 @@ class KenyaBizCLI:
             for phrase in payment_phrases
         )
 
-
     # ========================================================
     # PAYMENT COMPLETION
     # ========================================================
 
-    def contains_payment_completion_request(self, message):
+    def contains_payment_completion_request(
+        self,
+        message,
+    ):
 
         normalized = self.normalize_text(message)
 
@@ -291,12 +344,14 @@ class KenyaBizCLI:
             for phrase in completion_phrases
         )
 
-
     # ========================================================
     # PAYMENT STATUS
     # ========================================================
 
-    def contains_payment_status_request(self, message):
+    def contains_payment_status_request(
+        self,
+        message,
+    ):
 
         normalized = self.normalize_text(message)
 
@@ -326,21 +381,19 @@ class KenyaBizCLI:
             for phrase in status_phrases
         )
 
-
     # ========================================================
     # NAME EXTRACTION
     # ========================================================
 
-    def extract_name(self, message):
+    def extract_name(
+        self,
+        message,
+    ):
 
         if not message:
             return None
 
         text = message.strip()
-
-        # ----------------------------------------------------
-        # Explicit name formats
-        # ----------------------------------------------------
 
         patterns = [
             r"^(?:my name is|i am|i'm|name is)\s+(.+)$",
@@ -362,21 +415,23 @@ class KenyaBizCLI:
                 if self.looks_like_name(name):
                     return name
 
-        # ----------------------------------------------------
-        # Plain name
-        # ----------------------------------------------------
+        # Plain name such as:
+        #
+        # Ambrose Lengerpei
 
         if self.looks_like_name(text):
             return text
 
         return None
 
-
     # ========================================================
     # NAME VALIDATION
     # ========================================================
 
-    def looks_like_name(self, text):
+    def looks_like_name(
+        self,
+        text,
+    ):
 
         if not text:
             return False
@@ -388,10 +443,6 @@ class KenyaBizCLI:
 
         if len(text) > 100:
             return False
-
-        # ----------------------------------------------------
-        # Common non-name responses
-        # ----------------------------------------------------
 
         forbidden = {
             "yes",
@@ -411,10 +462,6 @@ class KenyaBizCLI:
 
         if normalized in forbidden:
             return False
-
-        # ----------------------------------------------------
-        # Names should not contain sentence punctuation
-        # ----------------------------------------------------
 
         if any(
             character in text
@@ -447,12 +494,14 @@ class KenyaBizCLI:
 
         return True
 
-
     # ========================================================
     # PHONE EXTRACTION
     # ========================================================
 
-    def extract_phone(self, message):
+    def extract_phone(
+        self,
+        message,
+    ):
 
         if not message:
             return None
@@ -477,20 +526,22 @@ class KenyaBizCLI:
 
         return match.group(0)
 
-
     # ========================================================
     # EMAIL EXTRACTION
     # ========================================================
 
-    def extract_email(self, message):
+    def extract_email(
+        self,
+        message,
+    ):
 
         if not message:
             return None
 
         pattern = (
             r"\b[A-Za-z0-9._%+-]+"
-            r"@[A-Za-z0-9.-]+\."
-            r"[A-Za-z]{2,}\b"
+            r"@[A-Za-z0-9.-]+"
+            r"\.[A-Za-z]{2,}\b"
         )
 
         match = re.search(
@@ -503,17 +554,21 @@ class KenyaBizCLI:
 
         return match.group(0)
 
-
     # ========================================================
     # ORDER REFERENCE
     # ========================================================
 
-    def extract_order_reference(self, message):
+    def extract_order_reference(
+        self,
+        message,
+    ):
 
         if not message:
             return None
 
-        pattern = r"\bKBA-\d{8}-[A-Z0-9]+\b"
+        pattern = (
+            r"\bKBA-\d{8}-[A-Z0-9]+\b"
+        )
 
         match = re.search(
             pattern,
@@ -524,18 +579,22 @@ class KenyaBizCLI:
             return None
 
         return match.group(0)
-
 
     # ========================================================
     # PAYMENT REFERENCE
     # ========================================================
 
-    def extract_payment_reference(self, message):
+    def extract_payment_reference(
+        self,
+        message,
+    ):
 
         if not message:
             return None
 
-        pattern = r"\bMPS[A-Z0-9]+\b"
+        pattern = (
+            r"\bMPS[A-Z0-9]+\b"
+        )
 
         match = re.search(
             pattern,
@@ -547,67 +606,91 @@ class KenyaBizCLI:
 
         return match.group(0)
 
-
     # ========================================================
     # UPDATE CUSTOMER DETAILS
     # ========================================================
 
-    def update_customer_details(self, message):
+    def update_customer_details(
+        self,
+        message,
+    ):
 
         changed = False
 
-        name = self.extract_name(message)
+        name = self.extract_name(
+            message
+        )
 
         if name:
+
             self.customer_name = name
+
             changed = True
 
-        phone = self.extract_phone(message)
+        phone = self.extract_phone(
+            message
+        )
 
         if phone:
+
             self.customer_phone = phone
+
             changed = True
 
-        email = self.extract_email(message)
+        email = self.extract_email(
+            message
+        )
 
         if email:
+
             self.customer_email = email
+
             changed = True
 
         return changed
-
 
     # ========================================================
     # BUILD ORDER MESSAGE
     # ========================================================
 
-    def build_order_message(self, message):
+    def build_order_message(
+        self,
+        message,
+    ):
 
         parts = [message]
 
         if self.customer_name:
+
             parts.append(
-                f"Customer name: {self.customer_name}"
+                f"Customer name: "
+                f"{self.customer_name}"
             )
 
         if self.customer_phone:
+
             parts.append(
-                f"Customer phone: {self.customer_phone}"
+                f"Customer phone: "
+                f"{self.customer_phone}"
             )
 
         if self.customer_email:
+
             parts.append(
-                f"Customer email: {self.customer_email}"
+                f"Customer email: "
+                f"{self.customer_email}"
             )
 
         return "\n".join(parts)
-
 
     # ========================================================
     # SAVE USER MESSAGE
     # ========================================================
 
-    def save_customer_message(self, message):
+    def save_customer_message(
+        self,
+        message,
+    ):
 
         self.conversation_history.append(
             {
@@ -616,12 +699,14 @@ class KenyaBizCLI:
             }
         )
 
-
     # ========================================================
     # SAVE ASSISTANT MESSAGE
     # ========================================================
 
-    def save_assistant_message(self, message):
+    def save_assistant_message(
+        self,
+        message,
+    ):
 
         self.conversation_history.append(
             {
@@ -630,119 +715,106 @@ class KenyaBizCLI:
             }
         )
 
-
     # ========================================================
     # UPDATE STATE FROM GRAPH RESULT
     # ========================================================
 
-    def _update_from_result(self, result):
+    def _update_from_result(
+        self,
+        result,
+    ):
 
         if not result:
             return
-
-        # ----------------------------------------------------
-        # Order reference
-        # ----------------------------------------------------
 
         order_reference = result.get(
             "order_reference"
         )
 
         if order_reference:
-            self.order_reference = order_reference
 
-        # ----------------------------------------------------
-        # Order status
-        # ----------------------------------------------------
+            self.order_reference = (
+                order_reference
+            )
 
         order_status = result.get(
             "order_status"
         )
 
         if order_status:
-            self.order_status = order_status
 
-        # ----------------------------------------------------
-        # Payment reference
-        # ----------------------------------------------------
+            self.order_status = (
+                order_status
+            )
 
         payment_reference = result.get(
             "payment_reference"
         )
 
         if payment_reference:
+
             self.payment_reference = (
                 payment_reference
             )
 
-        # ----------------------------------------------------
-        # Invoice
-        # ----------------------------------------------------
+        payment_status = result.get(
+            "payment_status"
+        )
+
+        if payment_status:
+
+            self.payment_status = (
+                payment_status
+            )
 
         invoice_path = result.get(
             "invoice_path"
         )
 
         if invoice_path:
-            self.invoice_path = invoice_path
 
-        # ----------------------------------------------------
-        # Customer
-        # ----------------------------------------------------
+            self.invoice_path = (
+                invoice_path
+            )
 
         customer_name = result.get(
             "customer_name"
         )
 
         if customer_name:
-            self.customer_name = customer_name
+
+            self.customer_name = (
+                customer_name
+            )
 
         customer_phone = result.get(
             "customer_phone"
         )
 
         if customer_phone:
-            self.customer_phone = customer_phone
+
+            self.customer_phone = (
+                customer_phone
+            )
 
         customer_email = result.get(
             "customer_email"
         )
 
         if customer_email:
-            self.customer_email = customer_email
 
-        # ----------------------------------------------------
-        # Nested payment result
-        # ----------------------------------------------------
-
-        payment = result.get("payment")
-
-        if isinstance(payment, dict):
-
-            nested_payment_reference = payment.get(
-                "payment_reference"
+            self.customer_email = (
+                customer_email
             )
-
-            if nested_payment_reference:
-                self.payment_reference = (
-                    nested_payment_reference
-                )
-
-            nested_order_reference = payment.get(
-                "order_reference"
-            )
-
-            if nested_order_reference:
-                self.order_reference = (
-                    nested_order_reference
-                )
-
 
     # ========================================================
     # UPDATE PENDING ACTION
     # ========================================================
 
-    def update_pending_action(self, result):
+    def update_pending_action(
+        self,
+        result,
+    ):
 
         if not result:
             return
@@ -759,109 +831,75 @@ class KenyaBizCLI:
             "order_status"
         )
 
-        response = result.get(
-            "response",
-            ""
+        pending_action = result.get(
+            "pending_action"
         )
 
-        response_lower = response.lower()
+        pending_request = result.get(
+            "pending_request"
+        )
 
         # ====================================================
-        # ORDER WORKFLOW
+        # Preserve explicit graph state
+        # ====================================================
+
+        if pending_action:
+
+            self.pending_action = (
+                pending_action
+            )
+
+        if pending_request is not None:
+
+            self.pending_request = (
+                pending_request
+            )
+
+        # ====================================================
+        # ORDER
         # ====================================================
 
         if destination == "order":
 
-            # ------------------------------------------------
-            # Waiting for confirmation
-            # ------------------------------------------------
-
-            if order_status == "AWAITING_CONFIRMATION":
+            if order_status == (
+                "AWAITING_CONFIRMATION"
+            ):
 
                 self.pending_action = (
                     "ORDER_CONFIRMATION"
                 )
 
-                self.pending_request = (
-                    result.get(
-                        "pending_request"
-                    )
-                    or self.pending_request
-                )
-
                 return
 
-            # ------------------------------------------------
-            # Waiting for customer name/details
-            # ------------------------------------------------
-
-            if order_status == "CUSTOMER_DETAILS_REQUIRED":
+            if order_status == (
+                "CUSTOMER_DETAILS_REQUIRED"
+            ):
 
                 self.pending_action = (
-                    "CUSTOMER_NAME"
-                )
-
-                self.pending_request = (
-                    result.get(
-                        "pending_request"
-                    )
-                    or self.pending_request
+                    "ORDER_CUSTOMER_NAME"
                 )
 
                 return
-
-            # ------------------------------------------------
-            # Other order waiting states
-            # ------------------------------------------------
-
-            if order_status in {
-                "AMBIGUOUS_PRODUCT",
-                "PRODUCT_NOT_FOUND",
-                "INSUFFICIENT_STOCK",
-            }:
-
-                self.pending_action = (
-                    "ORDER_WORKFLOW"
-                )
-
-                self.pending_request = (
-                    result.get(
-                        "pending_request"
-                    )
-                    or self.pending_request
-                )
-
-                return
-
-            # ------------------------------------------------
-            # Order completed
-            # ------------------------------------------------
 
             if status == "COMPLETED":
 
-                if result.get(
-                    "order_reference"
-                ):
-
-                    self.order_reference = (
-                        result["order_reference"]
-                    )
-
-                self.pending_action = (
-                    "ORDER_REFERENCE"
-                )
-
+                self.pending_action = None
                 self.pending_request = None
 
                 return
 
-            # ------------------------------------------------
-            # Response-based fallback
-            # ------------------------------------------------
+            response = result.get(
+                "response",
+                "",
+            )
+
+            response_lower = response.lower()
 
             if (
                 "please confirm" in response_lower
-                or "confirm that you would like" in response_lower
+                or
+                "confirm that you would like"
+                in response_lower
             ):
 
                 self.pending_action = (
@@ -872,117 +910,68 @@ class KenyaBizCLI:
 
             if (
                 "provide your name" in response_lower
-                or "your name" in response_lower
+                or
+                "your name" in response_lower
             ):
 
                 self.pending_action = (
-                    "CUSTOMER_NAME"
+                    "ORDER_CUSTOMER_NAME"
                 )
 
                 return
 
-
         # ====================================================
-        # INVOICE WORKFLOW
+        # INVOICE
         # ====================================================
 
         if destination == "invoice":
 
-            if result.get(
-                "invoice_path"
+            if pending_action == (
+                "INVOICE_ORDER_REFERENCE"
             ):
 
                 self.pending_action = (
-                    "INVOICE_REFERENCE"
+                    "INVOICE_ORDER_REFERENCE"
                 )
-
-                self.pending_request = None
 
                 return
 
-            if result.get(
-                "order_reference"
-            ):
-
-                self.pending_action = (
-                    "INVOICE_REFERENCE"
-                )
-
-                self.pending_request = None
-
-                return
-
-
-        # ====================================================
-        # PAYMENT WORKFLOW
-        # ====================================================
-
-        if destination == "payment":
-
-            payment_status = result.get(
-                "payment_status"
-            )
-
-            payment = result.get(
-                "payment"
-            )
-
-            if isinstance(payment, dict):
-
-                payment_status = (
-                    payment.get(
-                        "payment_status"
-                    )
-                    or payment_status
-                )
-
-            if payment_status:
-
-                payment_status = str(
-                    payment_status
-                ).upper()
-
-            if payment_status in {
-                "PENDING",
-                "PAID",
-                "COMPLETED",
-                "SUCCESS",
-            }:
-
-                self.pending_action = (
-                    "PAYMENT_REFERENCE"
-                )
-
-                self.pending_request = None
-
-                return
-
-            if self.payment_reference:
-
-                self.pending_action = (
-                    "PAYMENT_REFERENCE"
-                )
-
-                self.pending_request = None
-
-                return
-
-
-        # ====================================================
-        # GENERAL COMPLETION
-        # ====================================================
-
-        if status == "COMPLETED":
-
-            if destination not in {
-                "order",
-                "invoice",
-                "payment",
-            }:
+            if status == "COMPLETED":
 
                 self.pending_action = None
                 self.pending_request = None
 
+                return
+
+            if self.invoice_path:
+
+                self.pending_action = None
+                self.pending_request = None
+
+                return
+
+        # ====================================================
+        # PAYMENT
+        # ====================================================
+
+        if destination == "payment":
+
+            if pending_action == (
+                "PAYMENT_ORDER_REFERENCE"
+            ):
+
+                self.pending_action = (
+                    "PAYMENT_ORDER_REFERENCE"
+                )
+
+                return
+
+            if status == "COMPLETED":
+
+                self.pending_action = None
+                self.pending_request = None
+
+                return
 
     # ========================================================
     # RUN AGENT
@@ -995,16 +984,69 @@ class KenyaBizCLI:
     ):
 
         result = run_kenyabiz(
+
             customer_message=message,
-            forced_destination=forced_destination,
-            pending_request=self.pending_request,
-            order_confirmed=self.order_confirmed,
+
+            forced_destination=(
+                forced_destination
+            ),
+
+            conversation_history=(
+                self.conversation_history
+            ),
+
+            pending_request=(
+                self.pending_request
+            ),
+
+            order_confirmed=(
+                self.order_confirmed
+            ),
+
+            pending_action=(
+                self.pending_action
+            ),
+
+            # =================================================
+            # IMPORTANT:
+            # Persist order state
+            # =================================================
+
+            order_reference=(
+                self.order_reference
+            ),
+
+            order_status=(
+                self.order_status
+            ),
+
+            # =================================================
+            # Persist invoice state
+            # =================================================
+
+            invoice_path=(
+                self.invoice_path
+            ),
+
+            # =================================================
+            # IMPORTANT:
+            # Persist payment state
+            # =================================================
+
+            payment_reference=(
+                self.payment_reference
+            ),
+
+            payment_status=(
+                self.payment_status
+            ),
         )
 
         if not result:
 
             response = (
-                "I was unable to process your request."
+                "I was unable to process "
+                "your request."
             )
 
             self.save_assistant_message(
@@ -1013,17 +1055,13 @@ class KenyaBizCLI:
 
             return response
 
-        # ----------------------------------------------------
+        # ====================================================
         # Update state
-        # ----------------------------------------------------
+        # ====================================================
 
         self._update_from_result(
             result
         )
-
-        # ----------------------------------------------------
-        # Confirmation state
-        # ----------------------------------------------------
 
         if result.get(
             "order_confirmed"
@@ -1035,12 +1073,9 @@ class KenyaBizCLI:
                 )
             )
 
-        # ----------------------------------------------------
-        # Pending request
-        # ----------------------------------------------------
-
-        if result.get(
+        if (
             "pending_request"
+            in result
         ):
 
             self.pending_request = (
@@ -1049,17 +1084,13 @@ class KenyaBizCLI:
                 )
             )
 
-        # ----------------------------------------------------
-        # Pending action
-        # ----------------------------------------------------
-
         self.update_pending_action(
             result
         )
 
-        # ----------------------------------------------------
+        # ====================================================
         # Response
-        # ----------------------------------------------------
+        # ====================================================
 
         response = result.get(
             "response"
@@ -1074,7 +1105,8 @@ class KenyaBizCLI:
         if not response:
 
             response = (
-                "I was unable to generate a response."
+                "I was unable to generate "
+                "a response."
             )
 
         self.save_assistant_message(
@@ -1083,29 +1115,73 @@ class KenyaBizCLI:
 
         return response
 
-
     # ========================================================
     # HANDLE MESSAGE
     # ========================================================
 
-    def handle_message(self, message):
+    def handle_message(
+        self,
+        message,
+    ):
 
         if not message:
+
             return "Please enter a message."
 
         message = message.strip()
 
         if not message:
+
             return "Please enter a message."
 
-        # ----------------------------------------------------
-        # Save user message
-        # ----------------------------------------------------
+        normalized = self.normalize_text(
+            message
+        )
+
+        # ====================================================
+        # Exit
+        # ====================================================
+
+        if normalized in {
+            "exit",
+            "quit",
+            "bye",
+            "goodbye",
+        }:
+
+            return "Goodbye!"
+
+        # ====================================================
+        # Reset
+        # ====================================================
+
+        if normalized in {
+            "reset",
+            "start over",
+            "new conversation",
+        }:
+
+            self.reset()
+
+            return (
+                "The conversation has been reset."
+            )
+
+        # ====================================================
+        # Save customer message
+        # ====================================================
 
         self.save_customer_message(
             message
         )
 
+        # ====================================================
+        # Extract customer details
+        # ====================================================
+
+        self.update_customer_details(
+            message
+        )
 
         # ====================================================
         # 1. ACTIVE ORDER CONFIRMATION
@@ -1115,10 +1191,6 @@ class KenyaBizCLI:
             self.pending_action
             == "ORDER_CONFIRMATION"
         ):
-
-            # ------------------------------------------------
-            # Customer confirmed
-            # ------------------------------------------------
 
             if self.contains_confirmation(
                 message
@@ -1142,10 +1214,6 @@ class KenyaBizCLI:
                     forced_destination="order",
                 )
 
-            # ------------------------------------------------
-            # Customer cancelled
-            # ------------------------------------------------
-
             if self.contains_negative_confirmation(
                 message
             ):
@@ -1155,8 +1223,8 @@ class KenyaBizCLI:
                 self.order_confirmed = False
 
                 response = (
-                    "No problem. The order has not "
-                    "been created."
+                    "No problem. The order has "
+                    "not been created."
                 )
 
                 self.save_assistant_message(
@@ -1165,15 +1233,52 @@ class KenyaBizCLI:
 
                 return response
 
-
         # ====================================================
-        # 2. CUSTOMER NAME
+        # 2. CUSTOMER NAME FOR ORDER
         # ====================================================
 
-        if (
-            self.pending_action
-            == "CUSTOMER_NAME"
-        ):
+        if self.pending_action in {
+            "ORDER_CUSTOMER_NAME",
+            "CUSTOMER_NAME",
+        }:
+
+            # ------------------------------------------------
+            # Allow invoice request to interrupt order flow
+            # ------------------------------------------------
+
+            if self.contains_invoice_request(
+                message
+            ):
+
+                order_reference = (
+                    self.extract_order_reference(
+                        message
+                    )
+                )
+
+                if order_reference:
+
+                    self.order_reference = (
+                        order_reference
+                    )
+
+                    self.pending_request = None
+                    self.pending_action = None
+                    self.order_confirmed = False
+
+                    invoice_message = (
+                        "Generate invoice for order "
+                        f"{order_reference}"
+                    )
+
+                    return self._run_agent(
+                        message=invoice_message,
+                        forced_destination="invoice",
+                    )
+
+            # ------------------------------------------------
+            # Customer name
+            # ------------------------------------------------
 
             name = self.extract_name(
                 message
@@ -1183,13 +1288,10 @@ class KenyaBizCLI:
 
                 self.customer_name = name
 
-                # --------------------------------------------
-                # Preserve original order request
-                # --------------------------------------------
-
                 order_request = (
                     self.pending_request
-                    or "Create the customer's order."
+                    or
+                    "Create the customer's order."
                 )
 
                 order_message = (
@@ -1228,152 +1330,14 @@ class KenyaBizCLI:
 
             return response
 
-
         # ====================================================
-        # 3. OTHER ACTIVE ORDER WORKFLOW
-        # ====================================================
-
-        if (
-            self.pending_action
-            == "ORDER_WORKFLOW"
-        ):
-
-            if self.contains_confirmation(
-                message
-            ):
-
-                self.order_confirmed = True
-
-                confirmation_message = (
-                    "Customer confirmed the order."
-                )
-
-                if self.pending_request:
-
-                    confirmation_message += (
-                        "\n\n"
-                        + self.pending_request
-                    )
-
-                return self._run_agent(
-                    message=confirmation_message,
-                    forced_destination="order",
-                )
-
-            # -----------------------------------------------
-            # Capture customer information
-            # -----------------------------------------------
-
-            self.update_customer_details(
-                message
-            )
-
-            if self.customer_name:
-
-                order_message = (
-                    self.pending_request
-                    or message
-                )
-
-                order_message += (
-                    "\n\nCustomer name: "
-                    + self.customer_name
-                )
-
-                return self._run_agent(
-                    message=order_message,
-                    forced_destination="order",
-                )
-
-
-        # ====================================================
-        # 4. ACTIVE INVOICE WORKFLOW
+        # 3. ACTIVE INVOICE WORKFLOW
         # ====================================================
 
         if (
             self.pending_action
-            == "INVOICE_REFERENCE"
+            == "INVOICE_ORDER_REFERENCE"
         ):
-
-            # ------------------------------------------------
-            # PAYMENT HAS PRIORITY
-            # ------------------------------------------------
-
-            if self.contains_payment_completion_request(
-                message
-            ):
-
-                if self.payment_reference:
-
-                    payment_message = (
-                        f"Complete payment "
-                        f"{self.payment_reference}"
-                    )
-
-                    return self._run_agent(
-                        message=payment_message,
-                        forced_destination="payment",
-                    )
-
-                return self._run_agent(
-                    message=message,
-                    forced_destination="payment",
-                )
-
-            # ------------------------------------------------
-            # Payment status
-            # ------------------------------------------------
-
-            if self.contains_payment_status_request(
-                message
-            ):
-
-                if self.payment_reference:
-
-                    payment_message = (
-                        f"Check payment status for "
-                        f"{self.payment_reference}"
-                    )
-
-                    return self._run_agent(
-                        message=payment_message,
-                        forced_destination="payment",
-                    )
-
-                return self._run_agent(
-                    message=message,
-                    forced_destination="payment",
-                )
-
-            # ------------------------------------------------
-            # New payment request
-            # ------------------------------------------------
-
-            if self.contains_payment_request(
-                message
-            ):
-
-                if self.order_reference:
-
-                    payment_message = (
-                        f"Create payment request "
-                        f"for order "
-                        f"{self.order_reference}"
-                    )
-
-                    return self._run_agent(
-                        message=payment_message,
-                        forced_destination="payment",
-                    )
-
-                return self._run_agent(
-                    message=message,
-                    forced_destination="payment",
-                )
-
-            # ------------------------------------------------
-            # Continue invoice workflow
-            # ------------------------------------------------
 
             order_reference = (
                 self.extract_order_reference(
@@ -1387,10 +1351,64 @@ class KenyaBizCLI:
                     order_reference
                 )
 
-            if self.order_reference:
+                self.pending_action = None
+                self.pending_request = None
 
                 invoice_message = (
-                    f"Generate invoice for order "
+                    "Generate invoice for order "
+                    f"{order_reference}"
+                )
+
+                return self._run_agent(
+                    message=invoice_message,
+                    forced_destination="invoice",
+                )
+
+            response = (
+                "Please provide a valid KenyaBiz "
+                "order reference, for example "
+                "KBA-20260930-B49N."
+            )
+
+            self.save_assistant_message(
+                response
+            )
+
+            return response
+
+        # ====================================================
+        # 4. EXPLICIT INVOICE REQUEST
+        # ====================================================
+
+        if self.contains_invoice_request(
+            message
+        ):
+
+            order_reference = (
+                self.extract_order_reference(
+                    message
+                )
+            )
+
+            if order_reference:
+
+                self.order_reference = (
+                    order_reference
+                )
+
+            # ------------------------------------------------
+            # If we already know the order reference,
+            # use it directly.
+            # ------------------------------------------------
+
+            if self.order_reference:
+
+                self.pending_request = None
+                self.pending_action = None
+                self.order_confirmed = False
+
+                invoice_message = (
+                    "Generate invoice for order "
                     f"{self.order_reference}"
                 )
 
@@ -1399,6 +1417,21 @@ class KenyaBizCLI:
                     forced_destination="invoice",
                 )
 
+            # ------------------------------------------------
+            # No order reference yet.
+            # Let invoice agent request it.
+            # ------------------------------------------------
+
+            self.pending_request = None
+
+            self.pending_action = (
+                "INVOICE_ORDER_REFERENCE"
+            )
+
+            return self._run_agent(
+                message=message,
+                forced_destination="invoice",
+            )
 
         # ====================================================
         # 5. PAYMENT COMPLETION
@@ -1408,106 +1441,9 @@ class KenyaBizCLI:
             message
         ):
 
-            if self.payment_reference:
-
-                payment_message = (
-                    f"Complete payment "
-                    f"{self.payment_reference}"
-                )
-
-                return self._run_agent(
-                    message=payment_message,
-                    forced_destination="payment",
-                )
-
-            return self._run_agent(
-                message=message,
-                forced_destination="payment",
-            )
-
-
-        # ====================================================
-        # 6. PAYMENT STATUS
-        # ====================================================
-
-        if self.contains_payment_status_request(
-            message
-        ):
-
-            if self.payment_reference:
-
-                payment_message = (
-                    f"Check payment status for "
-                    f"{self.payment_reference}"
-                )
-
-                return self._run_agent(
-                    message=payment_message,
-                    forced_destination="payment",
-                )
-
-            return self._run_agent(
-                message=message,
-                forced_destination="payment",
-            )
-
-
-        # ====================================================
-        # 7. NEW PAYMENT REQUEST
-        # ====================================================
-
-        if self.contains_payment_request(
-            message
-        ):
-
-            if self.order_reference:
-
-                payment_message = (
-                    f"Create payment request "
-                    f"for order "
-                    f"{self.order_reference}"
-                )
-
-                return self._run_agent(
-                    message=payment_message,
-                    forced_destination="payment",
-                )
-
-            return self._run_agent(
-                message=message,
-                forced_destination="payment",
-            )
-
-
-        # ====================================================
-        # 8. ACTIVE PAYMENT REFERENCE
-        # ====================================================
-        #
-        # IMPORTANT:
-        # Having a payment reference does NOT mean that
-        # every future message belongs to the Payment Agent.
-        #
-        # We only continue the payment workflow if:
-        #
-        #   1. The customer provides a payment reference, OR
-        #   2. The customer explicitly asks for payment status.
-        #
-        # Otherwise, execution falls through to the normal
-        # Supervisor routing.
-        #
-        # This allows questions such as:
-        #
-        #   "What products do you have?"
-        #   "How long does delivery take?"
-        #   "Do you provide invoices?"
-        #
-        # to reach the correct specialist agent.
-        # ====================================================
-
-        if self.pending_action == "PAYMENT_REFERENCE":
-
             # ------------------------------------------------
-            # Customer provides a payment reference
+            # If the customer provides a payment reference,
+            # save it.
             # ------------------------------------------------
 
             payment_reference = (
@@ -1522,103 +1458,96 @@ class KenyaBizCLI:
                     payment_reference
                 )
 
-                payment_message = (
-                    f"Check payment status for "
-                    f"{self.payment_reference}"
-                )
-
-                return self._run_agent(
-                    message=payment_message,
-                    forced_destination="payment",
-                )
-
             # ------------------------------------------------
-            # Customer explicitly asks for payment status
+            # If an order reference is included, save it.
             # ------------------------------------------------
 
-            if self.contains_payment_status_request(
-                message
-            ):
-
-                if self.payment_reference:
-
-                    payment_message = (
-                        f"Check payment status for "
-                        f"{self.payment_reference}"
-                    )
-
-                    return self._run_agent(
-                        message=payment_message,
-                        forced_destination="payment",
-                    )
-
-            # ------------------------------------------------
-            # IMPORTANT:
-            #
-            # Do NOT return here.
-            #
-            # If the message is unrelated to payment,
-            # execution falls through to the normal
-            # Supervisor routing below.
-            # ------------------------------------------------
-
-
-        # ====================================================
-        # 9. EXPLICIT INVOICE REQUEST
-        # ====================================================
-
-        if self.contains_invoice_request(
-            message
-        ):
-
-            if self.order_reference:
-
-                invoice_message = (
-                    f"Generate invoice for order "
-                    f"{self.order_reference}"
-                )
-
-                return self._run_agent(
-                    message=invoice_message,
-                    forced_destination="invoice",
-                )
-
-            return self._run_agent(
-                message=message,
-                forced_destination="invoice",
-            )
-
-
-        # ====================================================
-        # 10. NEW ORDER REQUEST
-        # ====================================================
-
-        if self.contains_order_request(
-            message
-        ):
-
-            self.order_confirmed = False
-
-            # -----------------------------------------------
-            # Preserve original order request
-            # -----------------------------------------------
-
-            self.pending_request = message
-
-            order_message = (
-                self.build_order_message(
+            order_reference = (
+                self.extract_order_reference(
                     message
                 )
             )
 
+            if order_reference:
+
+                self.order_reference = (
+                    order_reference
+                )
+
+            # ------------------------------------------------
+            # IMPORTANT:
+            # Do NOT clear the existing payment reference.
+            #
+            # This allows:
+            #
+            # "I have paid"
+            #
+            # to use the previously generated:
+            #
+            # MPSWAPALF25
+            # ------------------------------------------------
+
             return self._run_agent(
-                message=order_message,
-                forced_destination="order",
+                message=message,
+                forced_destination="payment",
             )
 
+        # ====================================================
+        # 6. PAYMENT STATUS
+        # ====================================================
+
+        if self.contains_payment_status_request(
+            message
+        ):
+
+            payment_reference = (
+                self.extract_payment_reference(
+                    message
+                )
+            )
+
+            if payment_reference:
+
+                self.payment_reference = (
+                    payment_reference
+                )
+
+            return self._run_agent(
+                message=message,
+                forced_destination="payment",
+            )
 
         # ====================================================
-        # 11. PAYMENT REFERENCE IN MESSAGE
+        # 7. PAYMENT REQUEST
+        # ====================================================
+
+        if self.contains_payment_request(
+            message
+        ):
+
+            order_reference = (
+                self.extract_order_reference(
+                    message
+                )
+            )
+
+            if order_reference:
+
+                self.order_reference = (
+                    order_reference
+                )
+
+            self.pending_request = None
+            self.pending_action = None
+            self.order_confirmed = False
+
+            return self._run_agent(
+                message=message,
+                forced_destination="payment",
+            )
+
+        # ====================================================
+        # 8. PAYMENT REFERENCE
         # ====================================================
 
         payment_reference = (
@@ -1634,7 +1563,7 @@ class KenyaBizCLI:
             )
 
             payment_message = (
-                f"Check payment status for "
+                "Check payment status for "
                 f"{payment_reference}"
             )
 
@@ -1643,9 +1572,30 @@ class KenyaBizCLI:
                 forced_destination="payment",
             )
 
+        # ====================================================
+        # 9. NEW ORDER REQUEST
+        # ====================================================
+
+        if self.contains_order_request(
+            message
+        ):
+
+            self.order_confirmed = False
+            self.pending_request = message
+
+            order_message = (
+                self.build_order_message(
+                    message
+                )
+            )
+
+            return self._run_agent(
+                message=order_message,
+                forced_destination="order",
+            )
 
         # ====================================================
-        # 12. ORDER REFERENCE IN MESSAGE
+        # 10. ORDER REFERENCE
         # ====================================================
 
         order_reference = (
@@ -1660,16 +1610,14 @@ class KenyaBizCLI:
                 order_reference
             )
 
-
         # ====================================================
-        # 13. NORMAL REQUEST
+        # 11. NORMAL REQUEST
         # ====================================================
 
         return self._run_agent(
             message=message,
             forced_destination=None,
         )
-
 
     # ========================================================
     # MAIN CLI
@@ -1681,7 +1629,6 @@ class KenyaBizCLI:
         print("KENYABIZ AI")
         print("MULTI-AGENT BUSINESS ASSISTANT")
         print("=" * 70)
-
         print()
 
         print(
@@ -1697,6 +1644,10 @@ class KenyaBizCLI:
 
         print(
             "Type 'exit' or 'quit' to end the conversation."
+        )
+
+        print(
+            "Type 'reset' to start a new conversation."
         )
 
         print()
@@ -1725,10 +1676,8 @@ class KenyaBizCLI:
             if not message:
                 continue
 
-            normalized = (
-                self.normalize_text(
-                    message
-                )
+            normalized = self.normalize_text(
+                message
             )
 
             # ------------------------------------------------
@@ -1749,7 +1698,6 @@ class KenyaBizCLI:
                 )
 
                 break
-
 
             # ------------------------------------------------
             # Reset
@@ -1774,9 +1722,8 @@ class KenyaBizCLI:
 
                 continue
 
-
             # ------------------------------------------------
-            # Process
+            # Process message
             # ------------------------------------------------
 
             try:
@@ -1819,5 +1766,4 @@ def main():
 
 
 if __name__ == "__main__":
-
     main()

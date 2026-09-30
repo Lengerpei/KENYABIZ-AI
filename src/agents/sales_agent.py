@@ -18,7 +18,6 @@ from src.tools.product_tool import (
     get_product,
     search_products,
     check_stock,
-    get_products_by_category,
 )
 
 from src.tools.quotation_tool import build_quotation
@@ -29,10 +28,6 @@ from src.tools.quotation_tool import build_quotation
 # ============================================================
 
 PRODUCT_IDS = {
-    # --------------------------------------------------------
-    # Office furniture
-    # --------------------------------------------------------
-
     "office chair": "P001",
     "office chairs": "P001",
 
@@ -50,10 +45,6 @@ PRODUCT_IDS = {
 
     "executive desk": "P006",
     "executive desks": "P006",
-
-    # --------------------------------------------------------
-    # Other products
-    # --------------------------------------------------------
 
     "monitor stand": "P007",
     "monitor stands": "P007",
@@ -102,7 +93,7 @@ NUMBER_WORDS = {
 # ============================================================
 
 def normalize_text(text: str) -> str:
-    """Normalize user text for matching."""
+    """Normalize customer text."""
 
     if not text:
         return ""
@@ -125,10 +116,6 @@ def format_currency(value: float) -> str:
 # ============================================================
 
 def product_name(product: Dict[str, Any]) -> str:
-    """
-    Get the product name using the actual database field.
-    """
-
     return str(
         product.get(
             "product_name",
@@ -141,10 +128,6 @@ def product_name(product: Dict[str, Any]) -> str:
 
 
 def product_price(product: Dict[str, Any]) -> float:
-    """
-    Get the product price using the actual database field.
-    """
-
     return float(
         product.get(
             "price_kes",
@@ -157,10 +140,6 @@ def product_price(product: Dict[str, Any]) -> float:
 
 
 def product_stock(product: Dict[str, Any]) -> int:
-    """
-    Get stock quantity using the actual database field.
-    """
-
     return int(
         product.get(
             "stock_quantity",
@@ -181,44 +160,31 @@ def extract_quantity(
     default: int = 1,
 ) -> int:
     """
-    Extract a general quantity from text.
+    Extract a general quantity.
 
     Examples:
-
-        "5 office chairs" -> 5
-        "five office chairs" -> 5
-        "office chairs" -> 1
+        5 office chairs -> 5
+        five office chairs -> 5
+        office chairs -> 1
     """
 
-    text = normalize_text(text)
-
-    # --------------------------------------------------------
-    # Numeric quantity
-    # --------------------------------------------------------
+    normalized = normalize_text(text)
 
     match = re.search(
         r"\b(\d+)\b",
-        text,
+        normalized,
     )
 
     if match:
-
-        quantity = int(
-            match.group(1)
-        )
+        quantity = int(match.group(1))
 
         if quantity > 0:
             return quantity
 
-    # --------------------------------------------------------
-    # Number word
-    # --------------------------------------------------------
-
     for word, number in NUMBER_WORDS.items():
-
         if re.search(
             rf"\b{re.escape(word)}\b",
-            text,
+            normalized,
         ):
             return number
 
@@ -231,85 +197,39 @@ def extract_quantity_for_product(
     default: int = 1,
 ) -> int:
     """
-    Extract the quantity associated with a particular product.
-
-    Examples:
-
-        "5 office chairs"
-            -> 5
-
-        "five office chairs"
-            -> 5
-
-        "5 office chairs and 2 office desks"
-
-            Office Chair -> 5
-            Office Desk  -> 2
+    Extract quantity belonging to a particular product.
     """
 
-    text = normalize_text(text)
+    normalized = normalize_text(text)
+    product_name_text = normalize_text(product_name_text)
 
-    product_name_text = normalize_text(
-        product_name_text
-    )
-
-    # --------------------------------------------------------
-    # Build singular/plural alternatives
-    # --------------------------------------------------------
-
-    product_variants = [
-        product_name_text
-    ]
+    product_variants = [product_name_text]
 
     if product_name_text.endswith("s"):
-
         singular = product_name_text[:-1]
 
         if singular not in product_variants:
-            product_variants.append(
-                singular
-            )
+            product_variants.append(singular)
 
     else:
-
         plural = product_name_text + "s"
 
         if plural not in product_variants:
-            product_variants.append(
-                plural
-            )
-
-    # --------------------------------------------------------
-    # Find product in text
-    # --------------------------------------------------------
+            product_variants.append(plural)
 
     product_position = -1
 
     for variant in product_variants:
-
-        position = text.find(
-            variant
-        )
+        position = normalized.find(variant)
 
         if position != -1:
-
             product_position = position
             break
 
     if product_position == -1:
         return default
 
-    # --------------------------------------------------------
-    # Text immediately before product
-    # --------------------------------------------------------
-
-    before = text[
-        :product_position
-    ]
-
-    # --------------------------------------------------------
-    # Numeric quantity
-    # --------------------------------------------------------
+    before = normalized[:product_position]
 
     numeric_match = re.search(
         r"(\d+)\s*$",
@@ -317,7 +237,6 @@ def extract_quantity_for_product(
     )
 
     if numeric_match:
-
         quantity = int(
             numeric_match.group(1)
         )
@@ -325,16 +244,11 @@ def extract_quantity_for_product(
         if quantity > 0:
             return quantity
 
-    # --------------------------------------------------------
-    # Number-word quantity
-    # --------------------------------------------------------
-
     for word, number in sorted(
         NUMBER_WORDS.items(),
         key=lambda item: len(item[0]),
         reverse=True,
     ):
-
         if re.search(
             rf"\b{re.escape(word)}\s*$",
             before,
@@ -348,34 +262,13 @@ def extract_product_quantities(
     text: str,
     products: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    """
-    Extract product-specific quantities.
-
-    Example:
-
-        "5 office chairs and 2 office desks"
-
-    becomes:
-
-        [
-            {
-                "product_id": "P001",
-                "quantity": 5
-            },
-            {
-                "product_id": "P002",
-                "quantity": 2
-            }
-        ]
-    """
+    """Extract quantities for each mentioned product."""
 
     items = []
 
     for product in products:
 
-        name = product_name(
-            product
-        )
+        name = product_name(product)
 
         quantity = extract_quantity_for_product(
             text,
@@ -400,20 +293,12 @@ def extract_product_quantities(
 def identify_product(
     text: str,
 ) -> Optional[Dict[str, Any]]:
-    """
-    Identify a product from:
+    """Identify one product."""
 
-    - Product ID
-    - Product name
-    - Product alias
-    """
-
-    normalized = normalize_text(
-        text
-    )
+    normalized = normalize_text(text)
 
     # --------------------------------------------------------
-    # Check product ID
+    # Product ID
     # --------------------------------------------------------
 
     product_id_match = re.search(
@@ -423,19 +308,15 @@ def identify_product(
 
     if product_id_match:
 
-        product_id = (
-            product_id_match.group(0)
-        )
+        product_id = product_id_match.group(0)
 
-        product = get_product(
-            product_id
-        )
+        product = get_product(product_id)
 
         if product:
             return product
 
     # --------------------------------------------------------
-    # Check known aliases
+    # Known aliases
     # --------------------------------------------------------
 
     aliases = sorted(
@@ -451,20 +332,16 @@ def identify_product(
             normalized,
         ):
 
-            product = get_product(
-                product_id
-            )
+            product = get_product(product_id)
 
             if product:
                 return product
 
     # --------------------------------------------------------
-    # Try database search
+    # Database search
     # --------------------------------------------------------
 
-    results = search_products(
-        normalized
-    )
+    results = search_products(normalized)
 
     if results:
         return results[0]
@@ -479,31 +356,11 @@ def identify_product(
 def find_mentioned_products(
     text: str,
 ) -> List[Dict[str, Any]]:
-    """
-    Identify all known products mentioned in a request.
+    """Return all known products mentioned."""
 
-    This is different from identify_product(), which returns
-    only one product.
-
-    Example:
-
-        "5 office chairs and 2 office desks"
-
-    returns:
-
-        P001 Office Chair
-        P002 Office Desk
-    """
-
-    normalized = normalize_text(
-        text
-    )
+    normalized = normalize_text(text)
 
     mentioned_products = []
-
-    # --------------------------------------------------------
-    # Match known product aliases
-    # --------------------------------------------------------
 
     aliases = sorted(
         PRODUCT_IDS.items(),
@@ -518,9 +375,7 @@ def find_mentioned_products(
             normalized,
         ):
 
-            product = get_product(
-                product_id
-            )
+            product = get_product(product_id)
 
             if product:
 
@@ -529,14 +384,7 @@ def find_mentioned_products(
                     == product_id
                     for existing in mentioned_products
                 ):
-
-                    mentioned_products.append(
-                        product
-                    )
-
-    # --------------------------------------------------------
-    # Match product IDs
-    # --------------------------------------------------------
+                    mentioned_products.append(product)
 
     product_ids = re.findall(
         r"\bP\d{3}\b",
@@ -545,9 +393,7 @@ def find_mentioned_products(
 
     for product_id in product_ids:
 
-        product = get_product(
-            product_id
-        )
+        product = get_product(product_id)
 
         if product:
 
@@ -556,10 +402,7 @@ def find_mentioned_products(
                 == product_id
                 for existing in mentioned_products
             ):
-
-                mentioned_products.append(
-                    product
-                )
+                mentioned_products.append(product)
 
     return mentioned_products
 
@@ -572,70 +415,32 @@ def is_explicit_order_request(
     text: str,
 ) -> bool:
     """
-    Detect language indicating that the customer wants to
-    actually place an order.
-
-    These requests should remain with the Order Agent.
-
-    Examples:
-
-        "I want to order 2 office chairs"
-        "Please place an order for 5 chairs"
-        "I want to buy 3 desks"
-        "Please purchase 2 keyboards"
+    Detect requests that explicitly want to place an order.
     """
 
-    normalized = normalize_text(
-        text
-    )
+    normalized = normalize_text(text)
 
     order_patterns = [
-
-        # ----------------------------------------------------
-        # Order
-        # ----------------------------------------------------
 
         r"\border\b",
         r"\bordering\b",
         r"\borders\b",
 
-        # ----------------------------------------------------
-        # Place order
-        # ----------------------------------------------------
-
         r"\bplace an order\b",
         r"\bplace my order\b",
         r"\bplace the order\b",
-
-        # ----------------------------------------------------
-        # Want to order
-        # ----------------------------------------------------
 
         r"\bi want to order\b",
         r"\bi would like to order\b",
         r"\bi'd like to order\b",
         r"\bi need to order\b",
 
-        # ----------------------------------------------------
-        # Buying
-        # ----------------------------------------------------
-
         r"\bi want to buy\b",
         r"\bi would like to buy\b",
         r"\bi'd like to buy\b",
         r"\bi need to buy\b",
 
-        # ----------------------------------------------------
-        # Purchase
-        # ----------------------------------------------------
-
         r"\bpurchase\b",
-        r"\bpurchase an\b",
-        r"\bpurchase a\b",
-
-        # ----------------------------------------------------
-        # Proceed
-        # ----------------------------------------------------
 
         r"\bproceed with the order\b",
         r"\bproceed with my order\b",
@@ -653,36 +458,21 @@ def is_explicit_order_request(
 
 
 # ============================================================
-# QUANTITY REQUEST DETECTION
+# QUANTITY DETECTION
 # ============================================================
 
 def has_quantity(
     text: str,
 ) -> bool:
-    """
-    Determine whether a request contains a quantity.
 
-    Supports both numeric and word quantities.
+    normalized = normalize_text(text)
 
-    Examples:
-
-        "5 office chairs" -> True
-        "five office chairs" -> True
-        "office chairs" -> False
-    """
-
-    normalized = normalize_text(
-        text
-    )
-
-    # Numeric quantity
     if re.search(
         r"\b\d+\b",
         normalized,
     ):
         return True
 
-    # Number-word quantity
     return any(
         re.search(
             rf"\b{re.escape(word)}\b",
@@ -692,56 +482,152 @@ def has_quantity(
     )
 
 
+# ============================================================
+# STOCK REQUEST DETECTION
+# ============================================================
+
+def is_stock_request(
+    text: str,
+) -> bool:
+    """
+    Detect requests asking about product availability or stock.
+
+    Examples:
+        Do you have office chairs in stock?
+        Do you have 100 office chairs in stock?
+        Is the office chair available?
+        How many office desks do you have?
+        How much stock do you have?
+    """
+
+    normalized = normalize_text(text)
+
+    if not normalized:
+        return False
+
+    stock_patterns = [
+
+        r"\bin stock\b",
+        r"\bin-stock\b",
+        r"\bstock\b",
+
+        r"\bavailable\b",
+        r"\bavailability\b",
+
+        r"\bdo you have\b",
+
+        r"\bis there any\b",
+        r"\bare there any\b",
+
+        r"\bhow many.*available\b",
+        r"\bhow many.*in stock\b",
+        r"\bhow many.*do you have\b",
+
+        r"\bhow much stock\b",
+        r"\bhow much.*in stock\b",
+    ]
+
+    return any(
+        re.search(
+            pattern,
+            normalized,
+        )
+        for pattern in stock_patterns
+    )
+
+
+def is_stock_quantity_question(
+    text: str,
+) -> bool:
+    """
+    Detect questions asking for the actual stock quantity.
+
+    Examples:
+        How many office chairs are available?
+        How many office chairs do you have?
+        How much stock do you have for office chairs?
+    """
+
+    normalized = normalize_text(text)
+
+    quantity_patterns = [
+        r"\bhow many\b",
+        r"\bhow much stock\b",
+        r"\bhow much.*in stock\b",
+    ]
+
+    return any(
+        re.search(
+            pattern,
+            normalized,
+        )
+        for pattern in quantity_patterns
+    )
+
+
+# ============================================================
+# QUANTITY-BASED QUOTATION
+# ============================================================
+
 def is_quantity_based_quotation_request(
     text: str,
 ) -> bool:
     """
-    Detect a natural quantity-based quotation request.
+    Detect natural quotation requests.
 
-    Examples:
-
-        "I need 5 office chairs"
-        "I need 5 office chairs and 2 office desks"
-        "5 office chairs and 2 office desks"
-        "I need five office chairs"
-
-    Explicit order requests are excluded because those belong
-    to the Order Agent.
+    Explicit orders are excluded.
+    Stock requests are excluded.
+    Price questions are excluded.
     """
 
-    normalized = normalize_text(
-        text
-    )
+    normalized = normalize_text(text)
 
     # --------------------------------------------------------
-    # Explicit orders must not become quotations.
+    # Stock questions are not quotations.
     # --------------------------------------------------------
 
-    if is_explicit_order_request(
-        normalized
-    ):
+    if is_stock_request(normalized):
         return False
 
     # --------------------------------------------------------
-    # There must be at least one quantity.
+    # Explicit orders belong to Order Agent.
     # --------------------------------------------------------
 
-    if not has_quantity(
-        normalized
-    ):
+    if is_explicit_order_request(normalized):
         return False
 
     # --------------------------------------------------------
-    # There must be at least one known product.
+    # Direct price questions are PRICE requests.
     # --------------------------------------------------------
+
+    price_patterns = [
+        r"\bhow much\b",
+        r"\bwhat is the price\b",
+        r"\bwhat's the price\b",
+        r"\bwhats the price\b",
+        r"\bprice of\b",
+        r"\bprice for\b",
+        r"\bcost of\b",
+        r"\bcost for\b",
+    ]
+
+    if any(
+        re.search(
+            pattern,
+            normalized,
+        )
+        for pattern in price_patterns
+    ):
+        return False
+
+    if not has_quantity(normalized):
+        return False
 
     mentioned_products = find_mentioned_products(
         normalized
     )
 
-    return bool(
-        mentioned_products
-    )
+    return bool(mentioned_products)
 
 
 # ============================================================
@@ -749,30 +635,17 @@ def is_quantity_based_quotation_request(
 # ============================================================
 
 def get_product_catalogue() -> List[Dict[str, Any]]:
-    """
-    Return all products currently available.
-
-    The current database does not have a get_all_products()
-    function, so we retrieve products using the known IDs.
-    """
+    """Return all known products."""
 
     products = []
 
-    # --------------------------------------------------------
-    # Get all known product IDs
-    # --------------------------------------------------------
-
     product_ids = sorted(
-        set(
-            PRODUCT_IDS.values()
-        )
+        set(PRODUCT_IDS.values())
     )
 
     for product_id in product_ids:
 
-        product = get_product(
-            product_id
-        )
+        product = get_product(product_id)
 
         if product:
 
@@ -780,13 +653,7 @@ def get_product_catalogue() -> List[Dict[str, Any]]:
                 p["product_id"] == product_id
                 for p in products
             ):
-                products.append(
-                    product
-                )
-
-    # --------------------------------------------------------
-    # Sort by product ID
-    # --------------------------------------------------------
+                products.append(product)
 
     products.sort(
         key=lambda p: p.get(
@@ -801,19 +668,10 @@ def get_product_catalogue() -> List[Dict[str, Any]]:
 def is_product_catalogue_request(
     text: str,
 ) -> bool:
-    """
-    Detect requests asking for the product catalogue.
-    """
 
-    normalized = normalize_text(
-        text
-    )
+    normalized = normalize_text(text)
 
     patterns = [
-
-        # ----------------------------------------------------
-        # Products
-        # ----------------------------------------------------
 
         r"\bwhat products do you have\b",
         r"\bwhat products are available\b",
@@ -821,19 +679,11 @@ def is_product_catalogue_request(
         r"\bwhich products do you have\b",
         r"\bwhich products are available\b",
 
-        # ----------------------------------------------------
-        # Items
-        # ----------------------------------------------------
-
         r"\bwhat items do you have\b",
         r"\bwhat items are available\b",
         r"\bwhat items do you sell\b",
         r"\bwhich items do you have\b",
         r"\bwhich items are available\b",
-
-        # ----------------------------------------------------
-        # Catalogue
-        # ----------------------------------------------------
 
         r"\bshow me your catalogue\b",
         r"\bshow me the catalogue\b",
@@ -842,10 +692,6 @@ def is_product_catalogue_request(
         r"\bproduct catalogue\b",
         r"\bproduct catalog\b",
 
-        # ----------------------------------------------------
-        # Lists
-        # ----------------------------------------------------
-
         r"\blist your products\b",
         r"\blist the products\b",
         r"\blist products\b",
@@ -853,31 +699,20 @@ def is_product_catalogue_request(
         r"\blist the items\b",
         r"\blist items\b",
 
-        # ----------------------------------------------------
-        # Show all
-        # ----------------------------------------------------
-
         r"\bshow me all products\b",
         r"\bshow me all the products\b",
         r"\bshow all products\b",
         r"\bshow me all items\b",
         r"\bshow me all the items\b",
         r"\bshow all items\b",
+
         r"\bshow me your products\b",
         r"\bshow me your items\b",
-
-        # ----------------------------------------------------
-        # Selling
-        # ----------------------------------------------------
 
         r"\bwhat do you sell\b",
         r"\bwhat are you selling\b",
         r"\bproducts you sell\b",
         r"\bitems you sell\b",
-
-        # ----------------------------------------------------
-        # General
-        # ----------------------------------------------------
 
         r"\bwhat do you have\b",
         r"\bwhat is available\b",
@@ -897,12 +732,8 @@ def is_product_catalogue_request(
 def format_product_catalogue(
     products: List[Dict[str, Any]],
 ) -> str:
-    """
-    Format the product catalogue for the customer.
-    """
 
     if not products:
-
         return (
             "There are currently no products "
             "available in the catalogue."
@@ -920,13 +751,8 @@ def format_product_catalogue(
             "N/A",
         )
 
-        name = product_name(
-            product
-        )
-
-        price = product_price(
-            product
-        )
+        name = product_name(product)
+        price = product_price(product)
 
         lines.append(
             f"- {name} ({product_id}) — "
@@ -937,9 +763,6 @@ def format_product_catalogue(
 
 
 def process_product_catalogue_request() -> Dict[str, Any]:
-    """
-    Process a catalogue request.
-    """
 
     products = get_product_catalogue()
 
@@ -960,13 +783,8 @@ def process_product_catalogue_request() -> Dict[str, Any]:
 def process_price_request(
     text: str,
 ) -> Dict[str, Any]:
-    """
-    Process a product price request.
-    """
 
-    product = identify_product(
-        text
-    )
+    product = identify_product(text)
 
     if not product:
 
@@ -980,23 +798,13 @@ def process_price_request(
             ),
         }
 
-    quantity = extract_quantity(
-        text
-    )
+    quantity = extract_quantity(text)
 
-    price = product_price(
-        product
-    )
-
+    price = product_price(product)
     total = price * quantity
 
-    name = product_name(
-        product
-    )
-
-    product_id = product[
-        "product_id"
-    ]
+    name = product_name(product)
+    product_id = product["product_id"]
 
     if quantity == 1:
 
@@ -1032,13 +840,8 @@ def process_price_request(
 def process_stock_request(
     text: str,
 ) -> Dict[str, Any]:
-    """
-    Process stock availability request.
-    """
 
-    product = identify_product(
-        text
-    )
+    product = identify_product(text)
 
     if not product:
 
@@ -1052,17 +855,49 @@ def process_stock_request(
             ),
         }
 
-    quantity = extract_quantity(
-        text
-    )
+    product_id = product["product_id"]
+    name = product_name(product)
 
-    product_id = product[
-        "product_id"
-    ]
+    # --------------------------------------------------------
+    # If customer asks for the actual stock quantity
+    # --------------------------------------------------------
 
-    name = product_name(
-        product
-    )
+    if is_stock_quantity_question(text):
+
+        stock_result = check_stock(
+            product_id,
+            1,
+        )
+
+        available_quantity = int(
+            stock_result.get(
+                "available_quantity",
+                product_stock(product),
+            )
+        )
+
+        response = (
+            f"We currently have "
+            f"{available_quantity} units of "
+            f"{name.lower()} in stock."
+        )
+
+        return {
+            "success": True,
+            "type": "STOCK",
+            "product": product,
+            "quantity": available_quantity,
+            "available": available_quantity > 0,
+            "stock": available_quantity,
+            "response": response,
+        }
+
+    # --------------------------------------------------------
+    # Customer is asking whether a specific quantity is
+    # available.
+    # --------------------------------------------------------
+
+    quantity = extract_quantity(text)
 
     stock_result = check_stock(
         product_id,
@@ -1120,12 +955,64 @@ def process_product_search(
     text: str,
 ) -> Dict[str, Any]:
     """
-    Search for products.
+    Perform product search.
+
+    Explicit order requests are returned as SEARCH because
+    the Sales Agent test suite uses SEARCH as the classification
+    for requests that should subsequently be handled by the
+    Order Agent.
     """
 
-    results = search_products(
-        text
-    )
+    # --------------------------------------------------------
+    # Explicit order requests
+    #
+    # The Supervisor/Order Agent handles the actual order.
+    # Sales Agent simply identifies this as an order/search
+    # type and reports success.
+    # --------------------------------------------------------
+
+    if is_explicit_order_request(text):
+
+        product_results = find_mentioned_products(text)
+
+        if product_results:
+
+            product_lines = []
+
+            for product in product_results:
+
+                product_lines.append(
+                    f"- {product_name(product)} "
+                    f"({product['product_id']}) — "
+                    f"{format_currency(product_price(product))}"
+                )
+
+            response = (
+                "This is an order request. "
+                "The Order Agent should handle the order.\n\n"
+                "Products identified:\n"
+                + "\n".join(product_lines)
+            )
+
+        else:
+
+            response = (
+                "This is an order request. "
+                "The Order Agent should handle the order."
+            )
+
+        return {
+            "success": True,
+            "type": "SEARCH",
+            "products": product_results,
+            "response": response,
+        }
+
+    # --------------------------------------------------------
+    # Normal product search
+    # --------------------------------------------------------
+
+    results = search_products(text)
 
     if not results:
 
@@ -1150,13 +1037,8 @@ def process_product_search(
             "N/A",
         )
 
-        name = product_name(
-            product
-        )
-
-        price = product_price(
-            product
-        )
+        name = product_name(product)
+        price = product_price(product)
 
         lines.append(
             f"- {name} ({product_id}) — "
@@ -1178,38 +1060,38 @@ def process_product_search(
 def process_quotation_request(
     text: str,
 ) -> Dict[str, Any]:
-    """
-    Build a quotation.
 
-    Supports:
+    normalized = normalize_text(text)
 
-        Give me a quotation for 5 office chairs.
+    # Never generate quotations for stock requests.
 
-    and:
+    if is_stock_request(normalized):
 
-        Give me a quotation for 5 office chairs
-        and 2 office desks.
+        return {
+            "success": False,
+            "type": "STOCK",
+            "response": (
+                "This appears to be a stock availability "
+                "request rather than a quotation request."
+            ),
+        }
 
-    and natural requests such as:
+    # Never generate quotations for explicit orders.
 
-        I need 5 office chairs and 2 office desks.
-    """
+    if is_explicit_order_request(normalized):
 
-    normalized = normalize_text(
-        text
-    )
-
-    # --------------------------------------------------------
-    # Identify products mentioned in request
-    # --------------------------------------------------------
+        return {
+            "success": False,
+            "type": "SEARCH",
+            "response": (
+                "This is an order request. "
+                "The Order Agent should handle it."
+            ),
+        }
 
     mentioned_products = find_mentioned_products(
         normalized
     )
-
-    # --------------------------------------------------------
-    # No products found
-    # --------------------------------------------------------
 
     if not mentioned_products:
 
@@ -1223,22 +1105,12 @@ def process_quotation_request(
             ),
         }
 
-    # --------------------------------------------------------
-    # Extract individual quantities
-    # --------------------------------------------------------
-
     items = extract_product_quantities(
         normalized,
         mentioned_products,
     )
 
-    # --------------------------------------------------------
-    # Build quotation
-    # --------------------------------------------------------
-
-    quotation = build_quotation(
-        items
-    )
+    quotation = build_quotation(items)
 
     if not quotation:
 
@@ -1252,18 +1124,9 @@ def process_quotation_request(
             ),
         }
 
-    # --------------------------------------------------------
-    # Handle quotation errors
-    # --------------------------------------------------------
+    if isinstance(quotation, dict):
 
-    if isinstance(
-        quotation,
-        dict,
-    ):
-
-        if quotation.get(
-            "success"
-        ) is False:
+        if quotation.get("success") is False:
 
             message = quotation.get(
                 "message",
@@ -1279,10 +1142,6 @@ def process_quotation_request(
                 "response": str(message),
                 "quotation": quotation,
             }
-
-    # --------------------------------------------------------
-    # Get totals
-    # --------------------------------------------------------
 
     subtotal = float(
         quotation.get(
@@ -1304,10 +1163,6 @@ def process_quotation_request(
             0,
         )
     )
-
-    # --------------------------------------------------------
-    # Build response
-    # --------------------------------------------------------
 
     lines = [
         "Quotation",
@@ -1370,10 +1225,6 @@ def process_quotation_request(
 
     else:
 
-        # ----------------------------------------------------
-        # Fallback calculation
-        # ----------------------------------------------------
-
         for item in items:
 
             product = get_product(
@@ -1387,9 +1238,7 @@ def process_quotation_request(
                 item["quantity"]
             )
 
-            unit_price = product_price(
-                product
-            )
+            unit_price = product_price(product)
 
             line_total = (
                 unit_price * quantity
@@ -1433,13 +1282,8 @@ def process_quotation_request(
 def process_recommendation_request(
     text: str,
 ) -> Dict[str, Any]:
-    """
-    Provide simple product recommendations.
-    """
 
-    normalized = normalize_text(
-        text
-    )
+    normalized = normalize_text(text)
 
     search_text = re.sub(
         r"\b("
@@ -1458,9 +1302,7 @@ def process_recommendation_request(
         normalized,
     ).strip()
 
-    results = search_products(
-        search_text
-    )
+    results = search_products(search_text)
 
     if not results:
 
@@ -1487,18 +1329,14 @@ def process_recommendation_request(
 
     for product in results[:5]:
 
-        name = product_name(
-            product
-        )
+        name = product_name(product)
 
         product_id = product.get(
             "product_id",
             "N/A",
         )
 
-        price = product_price(
-            product
-        )
+        price = product_price(product)
 
         lines.append(
             f"- {name} ({product_id}) — "
@@ -1520,39 +1358,31 @@ def process_recommendation_request(
 def classify_sales_request(
     text: str,
 ) -> str:
-    """
-    Classify a customer request.
 
-    Possible results:
-
-        CATALOGUE
-        QUOTATION
-        STOCK
-        PRICE
-        RECOMMENDATION
-        SEARCH
-    """
-
-    normalized = normalize_text(
-        text
-    )
+    normalized = normalize_text(text)
 
     if not normalized:
-
         return "SEARCH"
 
-    # --------------------------------------------------------
-    # Catalogue FIRST
-    # --------------------------------------------------------
+    # ========================================================
+    # 1. CATALOGUE
+    # ========================================================
 
-    if is_product_catalogue_request(
-        normalized
-    ):
+    if is_product_catalogue_request(normalized):
         return "CATALOGUE"
 
-    # --------------------------------------------------------
-    # Explicit quotation
-    # --------------------------------------------------------
+    # ========================================================
+    # 2. STOCK
+    #
+    # Stock MUST be checked before quotation logic.
+    # ========================================================
+
+    if is_stock_request(normalized):
+        return "STOCK"
+
+    # ========================================================
+    # 3. EXPLICIT QUOTATION
+    # ========================================================
 
     quotation_patterns = [
         r"\bquotation\b",
@@ -1576,36 +1406,34 @@ def classify_sales_request(
     ):
         return "QUOTATION"
 
-    # --------------------------------------------------------
-    # Natural quantity-based quotation
-    # --------------------------------------------------------
+    # ========================================================
+    # 4. EXPLICIT ORDER
     #
-    # This handles requests such as:
+    # Explicit orders should not become quotations.
+    # ========================================================
+
+    if is_explicit_order_request(normalized):
+        return "SEARCH"
+
+    # ========================================================
+    # 5. PRICE
     #
-    # "I need 5 office chairs and 2 office desks"
-    # "I need five office chairs"
-    # "5 office chairs and 2 office desks"
+    # IMPORTANT:
+    # Price must come BEFORE natural quantity quotation.
     #
-    # Explicit order requests are excluded.
-    # --------------------------------------------------------
+    # This fixes:
+    #   How much are 5 office chairs?
+    #   What is the price of 2 office desks?
+    # ========================================================
 
-    if is_quantity_based_quotation_request(
-        normalized
-    ):
-        return "QUOTATION"
-
-    # --------------------------------------------------------
-    # Stock
-    # --------------------------------------------------------
-
-    stock_patterns = [
-        r"\bin stock\b",
-        r"\bstock\b",
-        r"\bavailable\b",
-        r"\bavailability\b",
-        r"\bdo you have\b",
-        r"\bhow many.*available\b",
-        r"\bhow many.*in stock\b",
+    price_patterns = [
+        r"\bhow much\b",
+        r"\bprice\b",
+        r"\bcost\b",
+        r"\bcosts\b",
+        r"\bpricing\b",
+        r"\brate\b",
+        r"\bper unit\b",
     ]
 
     if any(
@@ -1613,13 +1441,20 @@ def classify_sales_request(
             pattern,
             normalized,
         )
-        for pattern in stock_patterns
+        for pattern in price_patterns
     ):
-        return "STOCK"
+        return "PRICE"
 
-    # --------------------------------------------------------
-    # Recommendation
-    # --------------------------------------------------------
+    # ========================================================
+    # 6. NATURAL QUANTITY QUOTATION
+    # ========================================================
+
+    if is_quantity_based_quotation_request(normalized):
+        return "QUOTATION"
+
+    # ========================================================
+    # 7. RECOMMENDATION
+    # ========================================================
 
     recommendation_patterns = [
         r"\brecommend\b",
@@ -1641,32 +1476,9 @@ def classify_sales_request(
     ):
         return "RECOMMENDATION"
 
-    # --------------------------------------------------------
-    # Price
-    # --------------------------------------------------------
-
-    price_patterns = [
-        r"\bhow much\b",
-        r"\bprice\b",
-        r"\bcost\b",
-        r"\bcosts\b",
-        r"\bpricing\b",
-        r"\brate\b",
-        r"\bper unit\b",
-    ]
-
-    if any(
-        re.search(
-            pattern,
-            normalized,
-        )
-        for pattern in price_patterns
-    ):
-        return "PRICE"
-
-    # --------------------------------------------------------
-    # Search
-    # --------------------------------------------------------
+    # ========================================================
+    # 8. SEARCH
+    # ========================================================
 
     search_patterns = [
         r"\bfind\b",
@@ -1695,9 +1507,6 @@ def classify_sales_request(
 def process_sales_request(
     customer_message: str,
 ) -> Dict[str, Any]:
-    """
-    Main entry point for the Sales Agent.
-    """
 
     if not customer_message:
 
@@ -1714,17 +1523,9 @@ def process_sales_request(
         customer_message
     )
 
-    # --------------------------------------------------------
-    # Catalogue
-    # --------------------------------------------------------
-
     if request_type == "CATALOGUE":
 
         return process_product_catalogue_request()
-
-    # --------------------------------------------------------
-    # Quotation
-    # --------------------------------------------------------
 
     if request_type == "QUOTATION":
 
@@ -1732,19 +1533,11 @@ def process_sales_request(
             customer_message
         )
 
-    # --------------------------------------------------------
-    # Stock
-    # --------------------------------------------------------
-
     if request_type == "STOCK":
 
         return process_stock_request(
             customer_message
         )
-
-    # --------------------------------------------------------
-    # Recommendation
-    # --------------------------------------------------------
 
     if request_type == "RECOMMENDATION":
 
@@ -1752,29 +1545,17 @@ def process_sales_request(
             customer_message
         )
 
-    # --------------------------------------------------------
-    # Price
-    # --------------------------------------------------------
-
     if request_type == "PRICE":
 
         return process_price_request(
             customer_message
         )
 
-    # --------------------------------------------------------
-    # Search
-    # --------------------------------------------------------
-
     if request_type == "SEARCH":
 
         return process_product_search(
             customer_message
         )
-
-    # --------------------------------------------------------
-    # Fallback
-    # --------------------------------------------------------
 
     return {
         "success": False,
@@ -1788,13 +1569,10 @@ def process_sales_request(
 
 
 # ============================================================
-# TESTS
+# SALES AGENT TESTS
 # ============================================================
 
 def run_tests() -> None:
-    """
-    Run Sales Agent tests.
-    """
 
     print("=" * 70)
     print("KENYABIZ AI")
@@ -1871,12 +1649,32 @@ def run_tests() -> None:
         ),
 
         (
+            "Do you have 100 office chairs in stock?",
+            "STOCK",
+        ),
+
+        (
             "Is an office desk available?",
             "STOCK",
         ),
 
+        (
+            "How many office chairs are available?",
+            "STOCK",
+        ),
+
+        (
+            "How much stock do you have for office chairs?",
+            "STOCK",
+        ),
+
+        (
+            "Is P002 in stock?",
+            "STOCK",
+        ),
+
         # ----------------------------------------------------
-        # Explicit quotations
+        # Quotations
         # ----------------------------------------------------
 
         (
@@ -1905,7 +1703,7 @@ def run_tests() -> None:
         ),
 
         # ----------------------------------------------------
-        # Natural quantity-based quotations
+        # Natural quotations
         # ----------------------------------------------------
 
         (
@@ -1940,10 +1738,6 @@ def run_tests() -> None:
 
         # ----------------------------------------------------
         # Explicit orders
-        #
-        # These are intentionally NOT quotations.
-        # They should ultimately be handled by the
-        # Order Agent through main.py / graph.py.
         # ----------------------------------------------------
 
         (
@@ -1995,7 +1789,7 @@ def run_tests() -> None:
         ),
 
         # ----------------------------------------------------
-        # Actual products P007-P009
+        # Products P007-P009
         # ----------------------------------------------------
 
         (
@@ -2017,10 +1811,7 @@ def run_tests() -> None:
     passed = 0
     failed = 0
 
-    for number, (
-        message,
-        expected_type,
-    ) in enumerate(
+    for number, (message, expected_type) in enumerate(
         tests,
         start=1,
     ):
@@ -2043,17 +1834,11 @@ def run_tests() -> None:
             )
 
             success = (
-                result.get(
-                    "success",
-                    False,
-                )
-                and actual_type
-                == expected_type
+                result.get("success", False)
+                and actual_type == expected_type
             )
 
-            print(
-                f"Type: {actual_type}"
-            )
+            print(f"Type: {actual_type}")
 
             print(
                 f"Success: "
@@ -2098,10 +1883,6 @@ def run_tests() -> None:
                 f"{type(exc).__name__}: {exc}"
             )
 
-    # --------------------------------------------------------
-    # Summary
-    # --------------------------------------------------------
-
     print()
     print("=" * 70)
     print("SALES AGENT TEST SUMMARY")
@@ -2142,5 +1923,4 @@ def run_tests() -> None:
 # ============================================================
 
 if __name__ == "__main__":
-
     run_tests()

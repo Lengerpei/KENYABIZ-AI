@@ -2,1227 +2,1072 @@
 
 ## Multi-Agent AI Business Assistant for Kenyan SMEs
 
-KenyaBiz AI is a multi-agent business assistant designed to help Kenyan small and medium-sized enterprises (SMEs) manage common customer and business interactions through a conversational AI system.
+KenyaBiz AI is a multi-agent business assistant designed to help Kenyan small and medium-sized enterprises (SMEs) manage common customer and sales interactions through a conversational AI system.
 
-The system combines **LangGraph orchestration, retrieval-augmented generation (RAG), product and quotation management, order processing, PDF invoice generation, and simulated M-PESA payments** into one conversational workflow.
+The project combines:
 
-The application supports both a **command-line interface (CLI)** and a **Streamlit web interface**.
+* LangGraph-based multi-agent orchestration
+* Retrieval-Augmented Generation (RAG)
+* Product catalogue and stock lookup
+* Product pricing and quotations
+* Order processing and confirmation
+* PDF invoice generation
+* Simulated M-PESA payment processing
+* Stateful multi-turn conversations
+* Command-line and Streamlit interfaces
+* Automated functional and workflow testing
+
+KenyaBiz AI is developed as a capstone prototype demonstrating how AI agents can coordinate business processes rather than responding only as a standalone chatbot.
 
 ---
 
-# 1. Project Overview
+## 1. Project Overview
 
-Small and medium-sized businesses often handle customer enquiries, product requests, quotations, orders, invoices, and payments through separate manual processes.
+Many SMEs handle customer enquiries, product requests, quotations, orders, invoices, and payment-related questions manually. This can lead to repetitive work, inconsistent responses, and delays.
 
 KenyaBiz AI provides a single conversational interface through which a customer can:
 
-- Ask questions about the business
-- Ask about products
-- Check product prices
-- Check product availability
-- Request quotations
-- Place orders
-- Confirm orders
-- Provide customer details
-- Generate invoices
-- Request payment instructions
-- Simulate M-PESA payments
-- Check payment status
-- Continue a conversation across multiple turns
+1. Ask questions about the company.
+2. Ask about products, prices, and stock.
+3. Request a quotation.
+4. Place an order.
+5. Confirm an order and provide customer details.
+6. Request an invoice.
+7. Request simulated M-PESA payment processing.
+8. Check payment status.
 
-The system uses specialized AI agents for different business functions and a supervisor routing layer to determine which agent should handle each interaction.
+The system uses specialized agents coordinated through a supervisor and shared conversation state.
 
 ---
 
-# 2. Problem Statement
+## 2. Problem Statement
 
-Many Kenyan SMEs still rely heavily on manual communication channels to manage customer enquiries and sales processes.
+Small businesses often have limited resources for automating customer support and sales operations.
 
-A typical customer interaction may involve:
+Common challenges include:
 
-1. Asking about the business
-2. Asking about available products
-3. Requesting prices
-4. Asking for a quotation
-5. Placing an order
-6. Providing customer details
-7. Receiving an invoice
-8. Making payment
-9. Checking payment status
+* Repeatedly answering the same customer questions.
+* Maintaining product and pricing information.
+* Preparing quotations manually.
+* Capturing customer orders.
+* Generating invoices.
+* Handling payment-related interactions.
+* Maintaining context across multiple customer messages.
 
-Handling these steps manually can be time-consuming and may result in inconsistent responses, delays, or lost information between different stages of the customer journey.
-
-KenyaBiz AI addresses this problem by integrating these activities into a single conversational multi-agent system.
+KenyaBiz AI addresses these challenges through a prototype multi-agent architecture that combines deterministic business logic, retrieval, LLM-based responses, and workflow state management.
 
 ---
 
-# 3. Project Objectives
+## 3. Project Objectives
 
-The main objectives of KenyaBiz AI are to:
+The main objectives are to:
 
-- Develop a multi-agent AI business assistant for Kenyan SMEs.
-- Automate common business and customer-support interactions.
-- Provide product information and pricing through conversation.
-- Validate product availability before accepting orders.
-- Generate quotations automatically.
-- Support multi-turn order conversations.
-- Generate PDF invoices automatically.
-- Provide a simulated M-PESA payment workflow.
-- Maintain conversation and workflow state across multiple turns.
-- Demonstrate practical use of LangGraph for agent orchestration.
-- Demonstrate RAG for business knowledge retrieval.
-- Provide both CLI and Streamlit interfaces.
-- Implement automated tests covering individual components and complete workflows.
+* Build a practical AI assistant for Kenyan SMEs.
+* Demonstrate multi-agent orchestration using LangGraph.
+* Implement a lightweight RAG pipeline for company knowledge.
+* Provide product catalogue and pricing functionality.
+* Validate product availability and stock quantities.
+* Generate quotations from customer requests.
+* Support multi-turn order conversations.
+* Generate PDF invoices automatically.
+* Simulate M-PESA payment workflows.
+* Test individual agents and complete business workflows.
+* Provide both CLI and Streamlit interfaces.
 
 ---
 
-# 4. Proposed Solution
+## 4. Proposed Solution
 
-KenyaBiz AI uses a **supervisor-based multi-agent architecture**.
-
-A customer's message first enters the LangGraph workflow through the Supervisor routing node.
-
-The Supervisor determines the appropriate specialist based on the customer's request.
+KenyaBiz AI uses a supervisor-led multi-agent architecture.
 
 ```text
-                         ┌─────────────────┐
-                         │     START       │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                         ┌─────────────────┐
-                         │   SUPERVISOR    │
-                         │     ROUTING     │
-                         └────────┬────────┘
-                                  │
-             ┌────────────────────┼────────────────────┐
-             │                    │                    │
-             ▼                    ▼                    ▼
-       ┌───────────┐        ┌───────────┐       ┌───────────┐
-       │  SUPPORT  │        │   SALES   │       │   ORDER   │
-       └─────┬─────┘        └─────┬─────┘       └─────┬─────┘
-             │                    │                    │
-             └────────────────────┼────────────────────┘
-                                  │
-                    ┌─────────────┴─────────────┐
-                    │                           │
-                    ▼                           ▼
-             ┌─────────────┐             ┌─────────────┐
-             │   INVOICE   │             │   PAYMENT   │
-             └──────┬──────┘             └──────┬──────┘
-                    │                           │
-                    └─────────────┬─────────────┘
-                                  │
-                                  ▼
-                              ┌───────┐
-                              │  END  │
-                              └───────┘
+                         CUSTOMER
+                             |
+                             v
+                    +----------------+
+                    |   SUPERVISOR   |
+                    +----------------+
+                             |
+          +------------------+------------------+
+          |          |          |        |      |
+          v          v          v        v      v
+      SUPPORT      SALES      ORDER   INVOICE  PAYMENT
+          |          |          |        |      |
+          v          v          v        v      v
+        RAG       Products    Orders   ReportLab Payment
+       Knowledge  & Quotes    & State    PDF     Workflow
+        Base
+```
 
-The LangGraph workflow consists of:
+The supervisor determines which specialized agent should handle the customer's request.
 
-One Supervisor routing node
-Five specialist business-processing nodes:
-Support
-Sales
-Order
-Invoice
-Payment
+The agents share conversation state so that a workflow can continue across multiple messages.
 
-The Supervisor uses deterministic routing rules for known business workflows and falls back to the LLM-based supervisor when a request does not match the explicit routing conditions.
+---
 
-5. Key Features
-5.1 Business Information and FAQ
+## 5. Key Features
 
-Customers can ask questions about the business using the knowledge stored in the business documentation.
+### 5.1 Company and FAQ Questions
 
-Examples:
+Customers can ask questions about:
 
-What does KenyaBiz AI do?
+* The company
+* Products and services
+* Delivery
+* Payments
+* Invoices
+* Refunds
+* Customer support
 
-Where is the company located?
+The support agent retrieves relevant information from the business knowledge base before generating a response.
 
-How can I contact the company?
+### 5.2 Product Catalogue
 
-What payment methods do you accept?
+The product catalogue contains product information such as:
 
-What is your delivery policy?
-
-What is your refund policy?
-
-The Support Agent retrieves relevant business information from the knowledge base before generating a response.
-
-5.2 Product Catalogue
-
-The system maintains a product catalogue containing product information such as:
-
-Product ID
-Product name
-Description
-Price
-Stock quantity
+* Product ID
+* Product name
+* Category
+* Price
+* Available stock
 
 Example products include:
 
-Product	Price
-Office Chair	KES 8,500
-Office Desk	KES 15,000
-Laptop Stand	KES 4,500
-Office Cabinet	KES 18,000
-Visitor Chair	KES 5,500
-Executive Desk	KES 35,000
-Monitor Stand	KES 3,500
-Keyboard	KES 2,800
-Wireless Mouse	KES 1,800
-Meeting Table	KES 45,000
-5.3 Product Search
+| Product        | Example Price |
+| -------------- | ------------: |
+| Office Chair   |     KES 8,500 |
+| Office Desk    |    KES 15,000 |
+| Laptop Stand   |     KES 4,500 |
+| Office Cabinet |    KES 18,000 |
+| Visitor Chair  |     KES 5,500 |
+| Executive Desk |    KES 35,000 |
+| Monitor Stand  |     KES 3,500 |
+| Keyboard       |     KES 2,800 |
+| Wireless Mouse |     KES 1,800 |
+| Meeting Table  |    KES 45,000 |
 
-Customers can ask for products using natural language.
+### 5.3 Product Search
 
-Examples:
+Customers can search using natural-language requests such as:
 
-What office chairs do you have?
+```text
+What products do you sell?
+Do you have office chairs?
+How much is a keyboard?
+Do you have wireless mice?
+```
 
-Do you sell keyboards?
+### 5.4 Pricing
 
-Do you have office desks?
-
-What products are available?
-
-The Sales Agent interprets the request and retrieves relevant product information.
-
-5.4 Product Pricing
-
-Customers can request prices directly.
-
-Examples:
-
-How much is an office desk?
-
-What is the price of a keyboard?
-
-How much does an office chair cost?
-
-The system retrieves the current product price from the product catalogue.
-
-5.5 Stock Validation
-
-Before an order is accepted, the Order Agent validates:
-
-Whether the requested product exists.
-Whether the requested quantity is valid.
-Whether sufficient stock is available.
-
-For example:
-
-I want to order 2 office chairs.
-
-The system checks the product and available quantity before continuing with the order workflow.
-
-The current implementation validates stock availability but does not automatically deduct stock after an order.
-
-5.6 Quotations
-
-Customers can request quotations for multiple products.
-
-For example:
-
-I need 5 office chairs and 2 office desks.
-
-The system calculates:
-
-Office Chairs:
-5 × KES 8,500 = KES 42,500
-
-Office Desks:
-2 × KES 15,000 = KES 30,000
-
-Subtotal = KES 72,500
-Delivery = KES 2,500
-
-Total = KES 75,000
-
-The quotation can then lead into the order confirmation workflow.
-
-6. Multi-Agent Architecture
-
-KenyaBiz AI separates business responsibilities across specialized agents.
-
-This improves maintainability and allows each agent to focus on a specific business function.
-
-The main components are:
-
-Customer
-   │
-   ▼
-Supervisor
-   │
-   ├── Support Agent
-   │
-   ├── Sales Agent
-   │
-   ├── Order Agent
-   │
-   ├── Invoice Agent
-   │
-   └── Payment Agent
-7. Agent Responsibilities
-7.1 Supervisor Agent
-
-The Supervisor is responsible for routing incoming requests.
-
-It identifies whether the customer is asking about:
-
-Business information
-Products
-Prices
-Quotations
-Orders
-Invoices
-Payments
-Existing workflow continuation
-
-The implementation uses deterministic routing rules for important workflows before falling back to the LLM supervisor.
-
-This helps maintain reliable behavior for transactional workflows such as ordering and payment.
-
-7.2 Support Agent
-
-The Support Agent handles general business information.
-
-It uses the business knowledge base to answer questions about:
-
-Company information
-Services
-Payment methods
-Delivery
-Refunds
-General support
-
-The Support Agent uses the RAG retrieval pipeline to obtain relevant business context.
-
-7.3 Sales Agent
-
-The Sales Agent handles product-related enquiries.
-
-Responsibilities include:
-
-Product search
-Product information
-Product pricing
-Stock-related enquiries
-Quotations
-Multiple-product requests
+The assistant can provide individual product prices and calculate order totals.
 
 Example:
 
-How much are 5 office chairs?
+```text
+2 keyboards
+Product subtotal: KES 5,600
+Delivery: KES 2,500
+Total: KES 8,100
+```
 
-The Sales Agent calculates the requested product cost and can prepare a quotation.
+### 5.5 Stock Validation
 
-7.4 Order Agent
+Before an order is processed, the system checks whether the requested quantity is available.
 
-The Order Agent manages the order lifecycle.
+The current prototype validates stock availability but does not permanently deduct stock after an order is completed.
 
-The current workflow is:
+### 5.6 Quotations
 
-Customer requests product
-        ↓
-Product validation
-        ↓
-Stock validation
-        ↓
-Quotation
-        ↓
-Customer confirmation
-        ↓
-Customer details
-        ↓
-Order creation
-        ↓
-Order reference
+Customers can request quotations containing multiple products.
+
+Example:
+
+```text
+5 Office Chairs
+2 Office Desks
+
+Subtotal: KES 72,500
+Delivery: KES 2,500
+Total: KES 75,000
+```
+
+### 5.7 Order Processing
+
+The order workflow supports:
+
+* Product identification
+* Quantity validation
+* Stock validation
+* Order confirmation
+* Customer name capture
+* Customer details capture
+* Order reference generation
+* Order status management
 
 Example order reference:
 
+```text
 KBA-20260930-32RI
+```
 
-The Order Agent validates products and stock before allowing the order to proceed.
+### 5.8 Invoice Generation
 
-7.5 Invoice Agent
+The invoice agent generates PDF invoices using ReportLab.
 
-The Invoice Agent handles invoice generation.
+Invoices are generated from confirmed order information and include relevant order and customer details.
 
-It can:
+### 5.9 Simulated M-PESA Payments
 
-Identify an order reference
-Validate the order
-Retrieve order information
-Generate a PDF invoice
-Return the generated invoice path
+The payment agent demonstrates a payment workflow using simulated M-PESA transactions.
 
-Invoices are generated using ReportLab.
+The prototype can:
 
-Example:
+* Request payment for an order.
+* Generate a simulated payment reference.
+* Record payment status.
+* Check payment status.
 
-KBA-20260930-32RI
+This is a simulation and does not connect to the live Safaricom M-PESA API.
 
-can be used to identify an order for invoice generation.
+---
 
-7.6 Payment Agent
+## 6. Multi-Agent Architecture
 
-The Payment Agent manages the simulated payment workflow.
+KenyaBiz AI separates responsibilities among specialized agents.
 
-It supports:
+### Supervisor Agent
 
-Payment instructions
-Simulated M-PESA payment
-Payment references
-Payment status checks
+The supervisor determines which agent should handle a request.
 
-Example payment reference:
+Routing considers:
 
-MPSXXXXXXXX
+* The current customer message.
+* Existing conversation state.
+* Active order workflows.
+* Invoice references.
+* Payment references.
+* Product and quotation requests.
 
-The M-PESA integration is currently simulated and does not connect to the live Safaricom M-PESA API.
+Deterministic routing rules are used for important transactional workflows, while the LLM supervisor can provide fallback routing for requests that do not match explicit rules.
 
-8. Retrieval-Augmented Generation (RAG)
+### Support Agent
 
-KenyaBiz AI includes a lightweight Retrieval-Augmented Generation pipeline for business knowledge questions.
+Handles:
 
-The current retrieval implementation is keyword-based rather than vector or embedding-based.
+* Company questions
+* FAQs
+* Delivery questions
+* Payment policy questions
+* Invoice questions
+* General business information
 
-The retrieval process works as follows:
+It uses the business knowledge base and RAG retrieval.
 
-Customer Question
-       ↓
-Text Normalization
-       ↓
-Stop Word Removal
-       ↓
-Keyword Extraction
-       ↓
-Important Business Terms Weighted
-       ↓
-Document Scoring
-       ↓
-Top-k Documents
-       ↓
-Relevant Context
-       ↓
-Support Agent
-       ↓
-Final Response
+### Sales Agent
 
-The retriever:
+Handles:
 
-Normalizes the customer's query.
-Removes stop words.
-Extracts meaningful keywords.
-Gives additional weight to important business terms such as:
-payment
-M-PESA
-invoice
-delivery
-order
-refund
-price
-business
-service
-product
-customer
-Scores business documents according to keyword overlap.
-Selects the highest-scoring documents.
-Passes the retrieved content to the Support Agent.
-Current RAG Implementation
+* Product search
+* Product prices
+* Stock questions
+* Quotations
+* Product-related requests
 
-The current implementation uses lightweight keyword retrieval.
+### Order Agent
 
-Although faiss-cpu and sentence-transformers are included in the project dependencies, they are not currently used by the active retrieval implementation.
+Handles:
 
-They can be used in future versions to introduce semantic or embedding-based retrieval.
+* New orders
+* Order confirmation
+* Customer details
+* Stock validation
+* Order references
+* Order status
 
-9. Conversation State
+### Invoice Agent
 
-KenyaBiz AI maintains shared conversation and workflow state.
+Handles:
 
-The state is defined in:
+* Invoice requests
+* Order reference validation
+* PDF invoice generation
 
-src/state.py
+### Payment Agent
 
-The shared state supports fields including:
+Handles:
 
-Customer message
-Conversation history
-Pending request
-Pending action
-Pending order
-Order confirmation status
-Forced destination
-Routing reason
-Response
-Status
-Order reference
-Order status
-Invoice path
-Payment reference
-Payment status
-Customer information
+* Payment requests
+* Simulated M-PESA processing
+* Payment references
+* Payment status
 
-This state allows the system to maintain context across multiple interactions.
+---
 
-For example:
+## 7. Retrieval-Augmented Generation
 
-Customer:
-I want to order 2 keyboards.
+KenyaBiz AI includes a lightweight RAG pipeline for business knowledge.
 
-Assistant:
-The total is KES 8,100 including delivery. Would you like to confirm?
+The current implementation uses keyword-based document retrieval rather than vector embeddings.
 
-Customer:
-Yes.
+### Knowledge Base
 
-Assistant:
-Please provide your name.
+The knowledge base contains documents such as:
 
-Customer:
-Ambrose Lengerpei.
-
-Assistant:
-Your order has been created...
-
-The system therefore supports multi-turn interactions rather than treating every message as an independent request.
-
-10. End-to-End Business Workflow
-
-A typical customer journey can follow this sequence:
-
-1. Product enquiry
-        ↓
-2. Price enquiry
-        ↓
-3. Quotation
-        ↓
-4. Order request
-        ↓
-5. Product validation
-        ↓
-6. Stock validation
-        ↓
-7. Customer confirmation
-        ↓
-8. Customer details
-        ↓
-9. Order creation
-        ↓
-10. Invoice generation
-        ↓
-11. Payment request
-        ↓
-12. Simulated M-PESA payment
-        ↓
-13. Payment status
-
-Each stage is handled by the appropriate component or agent.
-
-11. Database Design
-
-KenyaBiz AI uses SQLite for local data persistence.
-
-The database contains business information required for order, invoice, and payment processing.
-
-The database implementation is located in:
-
-src/database/
-
-Important files include:
-
-database.py
-schema.sql
-
-The SQLite runtime database is generated locally and is excluded from Git using .gitignore.
-
-12. Data Architecture
-
-The project uses several types of data:
-
-Business Knowledge
-
-Stored in business documentation such as:
-
+```text
 company_profile.md
 faq.md
 delivery_policy.md
 payment_policy.md
+```
 
-These documents provide the knowledge used by the Support Agent.
+The retriever:
 
-Product Data
+1. Normalizes the customer query.
+2. Removes common stop words.
+3. Extracts meaningful keywords.
+4. Scores documents based on keyword overlap.
+5. Gives additional weight to important business terms.
+6. Selects the most relevant documents.
+7. Passes the retrieved context to the support agent.
 
-Product information is used for:
+This approach was intentionally kept lightweight and easy to understand for the capstone prototype.
 
-Product search
-Price lookup
+### Future RAG Enhancement
+
+The project includes `faiss-cpu` and `sentence-transformers` in its dependency set, but the current active retrieval implementation does not use them.
+
+Future versions can introduce:
+
+* Sentence embeddings
+* FAISS vector search
+* Semantic retrieval
+* Chunk-level retrieval
+* RAG evaluation metrics
+
+---
+
+## 8. Conversation State
+
+A shared `KenyaBizState` object maintains information required across the conversation.
+
+Examples include:
+
+* Customer message
+* Conversation history
+* Pending request
+* Pending action
+* Pending order
+* Order confirmation status
+* Destination agent
+* Routing reason
+* Order reference
+* Order status
+* Invoice path
+* Payment reference
+* Payment status
+* Customer information
+
+This allows the system to support multi-turn workflows.
+
+Example:
+
+```text
+Customer: I want to order 2 office chairs.
+
+Assistant: I found 2 Office Chairs. The total is KES 19,500 including delivery. Would you like to proceed?
+
+Customer: Yes.
+
+Assistant: Please provide your name.
+
+Customer: Ambrose Lengerpei.
+
+Assistant: Your order has been created...
+```
+
+The conversation state allows the system to understand that the second and third messages belong to the existing order workflow.
+
+---
+
+## 9. End-to-End Workflow
+
+A typical order workflow is:
+
+```text
+Customer request
+       |
+       v
+Supervisor routing
+       |
+       v
+Sales / Order Agent
+       |
+       v
+Product identification
+       |
+       v
 Stock validation
-Quotations
-Orders
-Transaction Data
+       |
+       v
+Quotation / total
+       |
+       v
+Customer confirmation
+       |
+       v
+Customer details
+       |
+       v
+Order creation
+       |
+       v
+Invoice generation
+       |
+       v
+Simulated payment
+       |
+       v
+Payment status
+```
 
-SQLite is used to persist transactional information such as:
+The workflow can be interrupted by unrelated questions and then continue when the customer returns to the pending order context.
 
-Customers
-Orders
-Order items
-Payments
-Generated Documents
+---
 
-PDF invoices are generated by the Invoice Agent.
+## 10. Database Design
 
-Generated invoice files are stored locally and excluded from Git.
+The project uses SQLite for local data persistence.
 
-13. Technology Stack
-Technology	Purpose
-Python 3.12	Main programming language
-LangGraph	Agent workflow orchestration
-LangChain	LLM and agent integration
-LangChain Groq	Groq LLM integration
-GPT OSS 120B via Groq	LLM used for AI-based reasoning/routing
-Streamlit	Web interface
-SQLite	Local database
-ReportLab	PDF invoice generation
-Pandas	Data processing
-python-dotenv	Environment configuration
-Pytest	Automated testing
-FAISS	Installed dependency for potential future retrieval
-Sentence Transformers	Installed dependency for potential future semantic retrieval
-14. Project Structure
+The database layer supports application data such as:
+
+* Products
+* Orders
+* Order items
+* Payments
+
+Database-related files are located under:
+
+```text
+src/database/
+```
+
+The local SQLite database is excluded from version control.
+
+---
+
+## 11. Data Architecture
+
+The project combines several data sources:
+
+```text
+                         KENYABIZ AI
+                              |
+       +----------------------+----------------------+
+       |                      |                      |
+       v                      v                      v
+ Product Data          Business Knowledge      Application Data
+       |                      |                      |
+       v                      v                      v
+ products.csv          Markdown documents        SQLite
+       |                      |                      |
+       +-----------+----------+----------------------+
+                   |
+                   v
+             AI Agent Workflow
+```
+
+Product information is used by the sales and order workflows, while business documents support company-related questions.
+
+---
+
+## 12. Technology Stack
+
+| Technology            | Purpose                                |
+| --------------------- | -------------------------------------- |
+| Python 3.12           | Application development                |
+| LangGraph             | Multi-agent workflow orchestration     |
+| LangChain             | LLM and agent integration              |
+| LangChain Core        | Core LLM abstractions                  |
+| ChatGroq              | LLM integration                        |
+| Groq                  | Language model inference               |
+| Streamlit             | Web interface                          |
+| SQLite                | Local database                         |
+| ReportLab             | PDF invoice generation                 |
+| pandas                | Data processing                        |
+| python-dotenv         | Environment configuration              |
+| pytest                | Automated testing                      |
+| FAISS                 | Planned vector retrieval enhancement   |
+| Sentence Transformers | Planned semantic retrieval enhancement |
+
+---
+
+## 13. Project Structure
+
+```text
 KENYABIZ-AI/
 │
 ├── data/
-│   └── documents/
-│       ├── company_profile.md
-│       ├── faq.md
-│       ├── delivery_policy.md
-│       └── payment_policy.md
+│   ├── company_profile.md
+│   ├── faq.md
+│   ├── delivery_policy.md
+│   ├── payment_policy.md
+│   └── products.csv
 │
 ├── src/
-│   ├── __init__.py
-│   ├── graph.py
-│   ├── main.py
-│   ├── state.py
-│   ├── streamlit_app.py
-│   │
 │   ├── agents/
-│   │   ├── __init__.py
-│   │   ├── supervisor.py
-│   │   ├── support_agent.py
-│   │   ├── sales_agent.py
-│   │   ├── order_agent.py
 │   │   ├── invoice_agent.py
-│   │   └── payment_agent.py
+│   │   ├── order_agent.py
+│   │   ├── payment_agent.py
+│   │   ├── sales_agent.py
+│   │   ├── supervisor.py
+│   │   └── support_agent.py
 │   │
 │   ├── database/
-│   │   ├── __init__.py
 │   │   ├── database.py
 │   │   └── schema.sql
 │   │
 │   ├── rag/
-│   │   ├── __init__.py
 │   │   ├── documents.py
 │   │   └── retriever.py
 │   │
 │   ├── tools/
-│   │   ├── __init__.py
-│   │   ├── product_tool.py
-│   │   ├── quotation_tool.py
-│   │   ├── order_tool.py
 │   │   ├── invoice_tool.py
-│   │   └── payment_tool.py
+│   │   ├── order_tool.py
+│   │   ├── payment_tool.py
+│   │   ├── product_tool.py
+│   │   └── quotation_tool.py
 │   │
-│   └── utils/
-│       ├── __init__.py
-│       ├── config.py
-│       └── helpers.py
+│   ├── graph.py
+│   ├── main.py
+│   ├── state.py
+│   └── streamlit_app.py
 │
 ├── tests/
-│   ├── __init__.py
 │   ├── conftest.py
 │   ├── test_agents.py
 │   ├── test_products.py
 │   ├── test_quotation.py
 │   └── test_workflow.py
 │
-├── .env
 ├── .gitignore
-├── requirements.txt
 ├── README.md
-└── app.py
+└── requirements.txt
+```
 
-Generated files such as Python cache files, logs, invoices, environment files, and the local SQLite database are excluded from version control.
+Generated files such as local invoices, logs, the SQLite database, Python cache files, and environment variables are excluded through `.gitignore`.
 
-15. Installation
-15.1 Clone the Repository
+---
+
+## 14. Installation
+
+### 14.1 Clone the Repository
+
+```bash
 git clone https://github.com/Lengerpei/KENYABIZ-AI.git
-
-Move into the project directory:
-
 cd KENYABIZ-AI
-15.2 Create a Virtual Environment
+```
 
-The project was developed using Python 3.12.
+### 14.2 Create a Virtual Environment
 
-Create the environment:
+Python 3.12 is recommended.
 
+On Windows:
+
+```powershell
 python -m venv .venv
-
-Activate it:
-
 .venv\Scripts\Activate.ps1
-15.3 Install Dependencies
+```
+
+### 14.3 Install Dependencies
+
+```powershell
 pip install -r requirements.txt
+```
 
-If Pytest is not included in the environment, install it separately:
+For running the automated tests:
 
+```powershell
 pip install pytest
-16. Environment Configuration
+```
 
-Create a .env file in the project root.
+---
+
+## 15. Environment Configuration
+
+Create a local `.env` file in the project root.
 
 Example:
 
+```env
 GROQ_API_KEY=your_groq_api_key
+```
 
-The API key should never be committed to Git.
+The `.env` file is intentionally excluded from Git.
 
-The .env file is excluded through .gitignore.
+Do not commit API keys or other credentials to the repository.
 
-Do not place API keys directly inside Python source files.
+---
 
-17. Running the Command-Line Interface
+## 16. Running the CLI
 
-The CLI application is implemented through:
+From the project root:
 
-src/main.py
-
-Run the application from the project root using:
-
+```powershell
 python -m src.main
+```
 
-You should see:
+The application starts the KenyaBiz AI conversational interface.
 
+Example:
+
+```text
 ======================================================================
 KENYABIZ AI
 MULTI-AGENT BUSINESS ASSISTANT
 ======================================================================
 
-You can then enter natural-language requests.
+You: What payment methods do you accept?
 
-Example:
+KenyaBiz AI: ...
+```
 
-You: How much is an office desk?
+To end the session:
 
-The system routes the request to the appropriate agent.
+```text
+exit
+```
 
-18. Running the Streamlit Interface
+To reset the conversation:
 
-KenyaBiz AI also provides a Streamlit web interface.
+```text
+reset
+```
+
+---
+
+## 17. Running the Streamlit Application
+
+The Streamlit interface is located at:
+
+```text
+src/streamlit_app.py
+```
 
 Run:
 
+```powershell
 streamlit run src/streamlit_app.py
+```
 
-The Streamlit application provides:
+This launches the browser-based interface for interacting with KenyaBiz AI.
 
-Chat interface
-Example prompts
-Product enquiries
-Order interactions
-Invoice download
-Payment interactions
-Conversation state
+---
 
-The Streamlit application uses the KenyaBizConversation class from src/main.py as the conversation engine.
+## 18. Example Conversations
 
-19. Example Conversations
-19.1 Product Price
-Customer:
-How much is a keyboard?
+### Company Question
+
+```text
+Customer: Tell me about the company.
+
+KenyaBiz AI: [Company information retrieved from the knowledge base]
+```
+
+### Product Price
+
+```text
+Customer: How much is an office chair?
+
+KenyaBiz AI: An Office Chair costs KES 8,500.
+```
+
+### Product Availability
+
+```text
+Customer: Do you have keyboards?
+
+KenyaBiz AI: Yes. The Keyboard is available at KES 2,800.
+```
+
+### Quotation
+
+```text
+Customer: Give me a quotation for 5 office chairs and 2 office desks.
 
 KenyaBiz AI:
-A keyboard costs KES 2,800.
-19.2 Product Availability
-Customer:
-Do you have office chairs?
-
-KenyaBiz AI:
-Yes. Office Chairs are available at KES 8,500 each.
-19.3 Quotation
-Customer:
-I need 5 office chairs and 2 office desks.
-
-KenyaBiz AI:
-Office Chairs:
-5 × KES 8,500 = KES 42,500
-
-Office Desks:
-2 × KES 15,000 = KES 30,000
-
 Subtotal: KES 72,500
 Delivery: KES 2,500
 Total: KES 75,000
+```
 
-Would you like to confirm the order?
-19.4 Multi-Turn Order
-Customer:
-I want to order 2 keyboards.
+### Order
 
-Assistant:
-The total including delivery is KES 8,100.
-Would you like to confirm the order?
+```text
+Customer: I want to order 2 office chairs.
 
-Customer:
-Yes.
+KenyaBiz AI: [Order confirmation request]
 
-Assistant:
-Please provide your name.
+Customer: Yes.
 
-Customer:
-Ambrose Lengerpei.
+KenyaBiz AI: Please provide your name.
 
-Assistant:
-Your order has been created successfully.
-19.5 Payment
-Customer:
-I want to pay for my order.
+Customer: Ambrose Lengerpei.
 
-Assistant:
-The system provides the available simulated payment instructions.
+KenyaBiz AI: [Order confirmation and reference]
+```
 
-Customer:
-I have made the payment.
+### Payment
 
-Assistant:
-The payment is recorded with a simulated M-PESA reference.
-20. Testing
+```text
+Customer: I want to pay for order KBA-XXXXXXXX-XXXX.
 
-The project includes automated tests covering:
+KenyaBiz AI: [Simulated payment request]
+```
 
-Product functionality
-Product validation
-Stock validation
-Quotations
-Individual agents
-Order processing
-Invoice processing
-Payment processing
-Multi-turn workflows
-Error handling
-Workflow interruptions and continuation
+These examples illustrate the intended interaction patterns; actual references are generated dynamically.
 
-Run the complete test suite:
+---
 
+## 19. Testing
+
+The project contains automated tests covering agents, product tools, quotations, and complete workflows.
+
+Run all tests with:
+
+```powershell
 pytest tests -q
+```
+
+### Current Test Result
 
 The current test suite contains:
 
+```text
 200 passed
+```
 
-This confirms that the current automated test suite passes successfully.
+The test suite covers:
 
-21. Workflow Testing
+* Agent behavior
+* Product lookup
+* Product validation
+* Stock validation
+* Quotation calculations
+* Order processing
+* Invoice workflows
+* Payment workflows
+* Conversation routing
+* Multi-turn order conversations
+* Error handling
+* Invalid inputs
+* Order cancellation and decline scenarios
 
-The project includes dedicated end-to-end workflow tests in:
+---
 
-tests/test_workflow.py
+## 20. Workflow Testing
 
-The workflow tests cover 14 scenarios, including:
-
-General support request
-Product price request
-New order request
-Complete order workflow
-Order workflow interruption
-Order continuation
-Invoice request
-Payment request
-Payment completion
-Payment status
-Unknown product
-Insufficient stock
-Order decline
-Invalid invoice reference
-
-Run workflow tests using:
-
-pytest tests/test_workflow.py -v
-22. Functional Testing vs AI Evaluation
-
-The current project has extensive automated functional and workflow testing.
-
-These tests verify that:
-
-Functions return expected results.
-Agents handle defined business scenarios.
-Orders are validated correctly.
-Stock constraints are respected.
-Workflow transitions work correctly.
-Errors are handled appropriately.
-Multi-turn conversations continue correctly.
-
-These tests are different from formal AI evaluation.
-
-Functional testing checks whether the application behaves according to defined requirements.
-
-AI evaluation would measure qualities such as:
-
-Answer relevance
-Faithfulness
-Retrieval quality
-Response quality
-Hallucination rate
-LLM reasoning performance
-
-Formal RAG/LLM evaluation is therefore considered a future enhancement for KenyaBiz AI.
-
-23. Error Handling
-
-The application includes validation and error handling for several situations.
+The workflow test suite contains 14 end-to-end scenarios covering important business conversations.
 
 Examples include:
 
-Unknown Product
-The requested product could not be found.
-Insufficient Stock
-The requested quantity is not currently available.
-Invalid Order Reference
+* Company support questions
+* Product price requests
+* New orders
+* Complete order workflows
+* Order interruptions
+* Order continuation
+* Invoice requests
+* Payment requests
+* Payment completion
+* Payment status checks
+* Unknown products
+* Insufficient stock
+* Declined orders
+* Invalid invoice references
 
-The system validates order references before attempting invoice or payment operations.
+The workflow tests are designed to verify that agents work together rather than testing each component in isolation.
 
-Invalid Payment Reference
+---
 
-Payment references are validated before processing payment-related requests.
+## 21. Functional Testing vs AI Evaluation
 
-Order Decline
+The current project has a strong automated functional test suite.
 
-If the customer declines an order confirmation, the order workflow is cancelled without creating the order.
+Functional tests verify deterministic application behavior such as:
 
-Unrelated Questions During an Order
+* Correct product identification
+* Correct prices
+* Stock validation
+* Order creation
+* Invoice generation
+* Payment workflow
+* Routing
+* Error handling
 
-The workflow preserves pending order information while allowing unrelated support or payment questions to be handled by the appropriate specialist.
+These tests do not fully measure the quality of LLM-generated responses.
 
-24. Security and Configuration
+Formal AI evaluation is therefore treated as a future enhancement.
 
-The project follows basic security practices appropriate for a prototype.
+Possible evaluation areas include:
 
-API Keys
+* Answer relevancy
+* Faithfulness
+* Context relevance
+* Retrieval quality
+* Response consistency
+* Multi-turn conversation quality
 
-API keys are stored in environment variables.
+Potential evaluation tools include RAGAS and DeepEval.
 
-.env
+---
 
-is excluded from Git.
+## 22. Error Handling
 
-Local Database
+The application includes safeguards for common errors.
 
-The runtime SQLite database is excluded from Git:
+Examples include:
 
-data/kenyabiz.db
-Generated Files
+* Unknown products
+* Invalid quantities
+* Insufficient stock
+* Invalid order references
+* Invalid invoice references
+* Invalid payment references
+* Declined orders
+* Missing customer details
+* LLM/API errors
+* Rate-limit errors
 
-Generated invoices and logs are excluded from version control.
+Where appropriate, the support agent can fall back to retrieved business knowledge when an LLM request is temporarily unavailable because of a rate-limit condition.
 
-Production Security
+---
 
-The current project is a capstone prototype and does not yet implement:
+## 23. Security and Configuration
 
-User authentication
-Role-based access control
-Production payment security
-Encrypted production database storage
-API rate limiting
-Production monitoring
-Enterprise identity management
+The current prototype follows basic security practices:
 
-These would be required before deploying the system in a production environment.
+* API keys are stored in environment variables.
+* `.env` is excluded from version control.
+* Generated local files are excluded from version control.
+* The application does not expose API keys in normal responses.
 
-25. Design Principles
+The prototype does not yet implement:
 
-KenyaBiz AI follows several design principles.
+* User authentication
+* Role-based access control
+* Production secrets management
+* Encrypted customer records
+* Production payment security
+* Production-grade API security
 
-Separation of Responsibilities
+These are important considerations for a production deployment.
 
-Each agent has a defined business responsibility.
+---
 
-Support → Business information
-Sales → Products and quotations
-Order → Orders
-Invoice → Invoices
-Payment → Payments
-Supervisor → Routing
-State-Aware Conversations
+## 24. Design Principles
 
-The system maintains workflow state so that conversations can continue across multiple messages.
+The project follows several design principles.
 
-Deterministic Transaction Routing
+### Separation of Responsibilities
 
-Important transaction workflows use deterministic routing rules before LLM fallback.
+Each agent has a focused business responsibility.
 
-This helps reduce incorrect routing during activities such as:
+### Stateful Conversations
 
-Order confirmation
-Invoice requests
-Payment requests
-Order continuation
-Modular Architecture
+Conversation state is shared across agents to support multi-turn workflows.
 
-Business logic is separated into:
+### Deterministic Transaction Logic
 
-Agents
-Tools
-Database
-RAG
-Graph
-State
-User interfaces
+Important business operations such as order validation, stock checks, invoice references, and payment references use deterministic application logic.
 
-This makes the system easier to maintain and extend.
+### Retrieval-Grounded Support
 
-26. Current Limitations
+Company-related responses are grounded in the business knowledge base.
 
-KenyaBiz AI is a capstone prototype and has several limitations.
+### Testability
 
-1. M-PESA Is Simulated
+Agents and workflows are separated so that individual components and complete workflows can be tested.
 
-The payment system does not currently connect to the live M-PESA API.
+### Extensibility
 
-2. Stock Is Not Automatically Deducted
+The architecture allows additional agents, tools, retrieval methods, and business capabilities to be added later.
 
-The system validates available stock but does not currently reduce inventory after an order is created.
+---
 
-3. Local SQLite Database
+## 25. Current Limitations
 
-SQLite is suitable for the prototype but may need to be replaced by a production database for larger workloads.
+KenyaBiz AI is a capstone prototype and has several limitations:
 
-4. Keyword-Based RAG
+1. The RAG implementation currently uses keyword-based retrieval.
+2. FAISS and sentence-transformer semantic retrieval are not yet active.
+3. M-PESA processing is simulated.
+4. Stock is validated but not permanently deducted after an order.
+5. SQLite is intended for local prototype use.
+6. User authentication is not implemented.
+7. The application does not provide production-grade payment integration.
+8. Formal LLM evaluation is limited.
+9. Responses depend partly on external LLM availability and API limits.
+10. The system has not been deployed as a production commercial application.
 
-The current RAG implementation uses lightweight keyword matching rather than semantic vector retrieval.
+---
 
-5. No Authentication
+## 26. Future Improvements
 
-The application does not currently implement customer authentication or account management.
+Potential future improvements include:
 
-6. No Production Payment Integration
+### Semantic RAG
 
-Payment processing is simulated and should not be treated as a live financial transaction system.
+Replace or supplement keyword retrieval with:
 
-7. Limited AI Evaluation
+* Sentence embeddings
+* FAISS vector search
+* Semantic similarity
+* Better document chunking
 
-The project currently focuses on functional and workflow testing rather than formal LLM evaluation.
+### Real M-PESA Integration
 
-8. Prototype Deployment
+Integrate with an appropriate M-PESA API for real payment processing in a secure production environment.
 
-The current architecture is designed primarily for demonstration, development, and capstone evaluation rather than production deployment.
-
-27. Future Improvements
-
-Future versions of KenyaBiz AI could include:
-
-27.1 Semantic RAG
-
-Replace or complement keyword retrieval with:
-
-Sentence embeddings
-Vector search
-FAISS
-Hybrid retrieval
-Semantic reranking
-
-This would improve retrieval for questions that use different wording from the knowledge-base documents.
-
-27.2 Live M-PESA Integration
-
-Integrate the official M-PESA API to support:
-
-Payment requests
-Payment confirmation
-Transaction callbacks
-Transaction verification
-Payment reconciliation
-27.3 Inventory Management
-
-Implement automatic stock deduction after successful order creation.
-
-Additional inventory features could include:
-
-Stock replenishment
-Low-stock alerts
-Inventory reports
-Product availability forecasting
-27.4 Production Database
-
-Move from SQLite to a production database such as:
-
-PostgreSQL
-MySQL
-
-This would support greater concurrency and scalability.
-
-27.5 Authentication
-
-Introduce:
-
-Customer accounts
-Staff accounts
-Role-based permissions
-Secure session management
-27.6 Formal AI Evaluation
-
-Introduce systematic evaluation of:
-
-RAG retrieval quality
-Answer relevance
-Faithfulness
-Hallucination
-Agent routing accuracy
-End-to-end response quality
-27.7 Observability
+### Authentication
 
 Add:
 
-Structured logging
-Agent execution tracing
-Performance monitoring
-Error monitoring
-Usage analytics
-27.8 Additional Business Integrations
+* Customer authentication
+* Staff authentication
+* Role-based access control
 
-Future versions could integrate with:
+### Advanced Database Management
 
-Email
-SMS
-WhatsApp
-Accounting systems
-Inventory systems
-Payment providers
-Customer relationship management systems
-28. Capstone Significance
+Introduce production-ready database infrastructure and stronger transaction management.
 
-KenyaBiz AI demonstrates how modern AI technologies can be combined to solve practical business problems.
+### Inventory Management
 
-The project demonstrates practical implementation of:
+Automatically update stock after confirmed orders and support inventory reconciliation.
 
-Large Language Models
-Multi-agent systems
-LangGraph
-LangChain
-Retrieval-Augmented Generation
-Conversational state management
-Tool-based business processing
-Database integration
-Automated document generation
-Payment workflow simulation
-Automated software testing
-Streamlit application development
+### AI Evaluation
 
-The project also demonstrates how AI can be structured into specialized components rather than relying on a single general-purpose chatbot.
+Introduce systematic evaluation using:
 
-29. Conclusion
+* RAGAS
+* DeepEval
+* Custom business-specific evaluation datasets
 
-KenyaBiz AI provides a practical multi-agent architecture for automating common SME customer and business workflows.
+### Deployment
 
-The system combines conversational AI with structured business logic to support:
+Deploy the application using an appropriate cloud or enterprise environment with:
 
-Business Questions
-       ↓
-Product Search
-       ↓
-Pricing
-       ↓
-Quotations
-       ↓
-Orders
-       ↓
-Invoices
-       ↓
-Payments
+* Secure secrets management
+* Monitoring
+* Logging
+* Error tracking
+* Scalable infrastructure
 
-Its LangGraph-based architecture allows different agents to specialize in different business functions while maintaining shared conversation state.
+---
 
-The current implementation provides a functional prototype with:
+## 27. Capstone Significance
 
-Multi-agent orchestration
-RAG-based business support
-Product catalogue
-Product pricing
-Stock validation
-Quotations
-Multi-turn order processing
-PDF invoice generation
-Simulated M-PESA payments
-CLI interface
-Streamlit interface
-Automated testing
-200 passing tests
-14 end-to-end workflow scenarios
+KenyaBiz AI demonstrates how multiple AI agents can be combined with traditional software engineering and business logic to automate a realistic SME workflow.
 
-The architecture provides a foundation that can be extended toward semantic RAG, live payment integration, production databases, authentication, inventory management, formal AI evaluation, and production deployment.
+The project goes beyond a simple chatbot by combining:
 
-30. Author
+* Multi-agent orchestration
+* RAG
+* Structured product data
+* Business rules
+* Stateful conversations
+* Database operations
+* Document generation
+* Simulated payment processing
+* Automated testing
 
-Ambrose Ltiripwa Lengerpei
+This makes the project a practical demonstration of agentic AI applied to a Kenyan SME business context.
 
-Data Scientist/AI developer
+---
 
+## 28. Conclusion
+
+KenyaBiz AI provides a working prototype of a multi-agent business assistant capable of supporting common SME customer and sales workflows.
+
+The current implementation demonstrates the integration of AI agents with deterministic business tools and stateful workflow management.
+
+With further development in semantic retrieval, authentication, inventory management, payment integration, AI evaluation, and production deployment, the architecture can be extended into a more complete business automation platform.
+
+---
+
+## 29. Author
+
+**Ambrose Ltiripwa Lengerpei**
+
+Data Science / AI Developer
 Kenya
 
-31. Repository
+KenyaBiz AI was developed as a capstone project demonstrating practical applications of agentic AI, RAG, data processing, and workflow automation.
 
-GitHub Repository:
+---
+
+## 30. Repository
+
+GitHub:
 
 https://github.com/Lengerpei/KENYABIZ-AI
 
-32. Project Status
+---
 
-Status: Capstone Prototype Complete
+## 31. Project Status
+
+**Capstone Prototype Complete**
 
 Current implementation includes:
 
- Multi-agent architecture
- LangGraph orchestration
- Supervisor routing
- Support Agent
- Sales Agent
- Order Agent
- Invoice Agent
- Payment Agent
- Business knowledge RAG
- Product catalogue
- Product pricing
- Stock validation
- Quotations
- Multi-turn order workflow
- Order confirmation
- PDF invoice generation
- Simulated M-PESA payment
- SQLite database
- CLI interface
- Streamlit interface
- Automated agent tests
- Product tests
- Quotation tests
- End-to-end workflow tests
- Error-handling tests
- 200 automated tests passing
- 14 workflow scenarios passing
+* Multi-agent architecture
+* Stateful conversation workflow
+* Business knowledge retrieval
+* Product catalogue
+* Product pricing
+* Stock validation
+* Quotations
+* Order processing
+* PDF invoice generation
+* Simulated M-PESA payment workflow
+* CLI interface
+* Streamlit interface
+* Automated tests
+* 200 passing tests
+* 14 end-to-end workflow scenarios
 
-Quick Start
-CLI
+The project is suitable for capstone demonstration and further development toward a production system.
+
+---
+
+## Quick Start
+
+```powershell
+git clone https://github.com/Lengerpei/KENYABIZ-AI.git
+cd KENYABIZ-AI
+
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+
+pip install -r requirements.txt
+pip install pytest
+
 python -m src.main
+```
 
-Streamlit
+For the Streamlit interface:
+
+```powershell
 streamlit run src/streamlit_app.py
+```
 
-Tests
+For testing:
+
+```powershell
 pytest tests -q
+```
 
-License
+---
 
-This project was developed as an AI capstone project for educational and demonstration purposes.
+## License
+
+This project is developed as an educational and capstone prototype.

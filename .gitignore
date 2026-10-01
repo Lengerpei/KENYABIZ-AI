@@ -1,21 +1,32 @@
+# Python environments
 .venv/
 venv/
 
+# Environment variables
 .env
 .env.*
 
+# Python cache
 __pycache__/
 *.py[cod]
 *.pyo
 
+# Testing
 .pytest_cache/
 .coverage
 htmlcov/
 
+# Generated application files
 invoices/
+logs/
 
+# Local SQLite database
+data/kenyabiz.db
+
+# IDE
 .vscode/
 .idea/
 
+# OS
 .DS_Store
 Thumbs.db

@@ -5,77 +5,56 @@ from src.graph import run_kenyabiz
 
 # ============================================================
 # KENYABIZ AI
-# MAIN CLI APPLICATION
+# MAIN CONVERSATION / CLI APPLICATION
 # ============================================================
 
 
-class KenyaBizCLI:
+class KenyaBizConversation:
+    """
+    Conversation and session manager for KenyaBiz AI.
+
+    This class maintains customer conversation state between
+    calls to the LangGraph workflow.
+
+    The business logic and specialist routing remain in the
+    graph and agent layers.
+    """
+
+    # ========================================================
+    # INITIALIZATION
+    # ========================================================
 
     def __init__(self):
-
-        # ====================================================
-        # Conversation state
-        # ====================================================
-
-        self.conversation_history = []
-
-        # ====================================================
-        # Active workflow
-        # ====================================================
-
-        self.pending_request = None
-        self.pending_action = None
-
-        # ====================================================
-        # Customer details
-        # ====================================================
-
-        self.customer_name = None
-        self.customer_phone = None
-        self.customer_email = None
-
-        # ====================================================
-        # Order state
-        # ====================================================
-
-        self.order_confirmed = False
-        self.order_reference = None
-        self.order_status = None
-
-        # ====================================================
-        # Invoice state
-        # ====================================================
-
-        self.invoice_path = None
-
-        # ====================================================
-        # Payment state
-        # ====================================================
-
-        self.payment_reference = None
-        self.payment_status = None
+        self.reset()
 
     # ========================================================
     # RESET
     # ========================================================
 
     def reset(self):
+        """Reset the current conversation and workflow state."""
 
+        # Conversation memory
         self.conversation_history = []
 
+        # Pending workflow
         self.pending_request = None
         self.pending_action = None
 
+        # Customer details
         self.customer_name = None
         self.customer_phone = None
         self.customer_email = None
 
+        # Order state
         self.order_confirmed = False
         self.order_reference = None
         self.order_status = None
 
+        # Invoice state
         self.invoice_path = None
 
+        # Payment state
         self.payment_reference = None
         self.payment_status = None
 
@@ -83,13 +62,15 @@ class KenyaBizCLI:
     # TEXT NORMALIZATION
     # ========================================================
 
-    def normalize_text(self, text):
+    @staticmethod
+    def normalize_text(text):
+        """Normalize text for simple intent checks."""
 
         if not text:
             return ""
 
         return " ".join(
-            text.lower().strip().split()
+            str(text).lower().strip().split()
         )
 
     # ========================================================
@@ -97,6 +78,7 @@ class KenyaBizCLI:
     # ========================================================
 
     def contains_confirmation(self, message):
+        """Return True when the message clearly confirms an action."""
 
         normalized = self.normalize_text(message)
 
@@ -131,10 +113,8 @@ class KenyaBizCLI:
     # NEGATIVE CONFIRMATION
     # ========================================================
 
-    def contains_negative_confirmation(
-        self,
-        message,
-    ):
+    def contains_negative_confirmation(self, message):
+        """Return True when the message clearly declines an action."""
 
         normalized = self.normalize_text(message)
 
@@ -144,6 +124,7 @@ class KenyaBizCLI:
             "no thank you",
             "cancel",
             "cancel it",
+            "cancel the order",
             "don't proceed",
             "do not proceed",
             "stop",
@@ -155,12 +136,19 @@ class KenyaBizCLI:
     # ORDER REQUEST DETECTION
     # ========================================================
 
-    def contains_order_request(
-        self,
-        message,
-    ):
+    def contains_order_request(self, message):
+        """
+        Detect an explicit request to purchase/order a product.
+
+        Product recognition is deliberately broader than the old
+        chair/desk-only implementation because the KenyaBiz
+        catalogue contains multiple product categories.
+        """
 
         normalized = self.normalize_text(message)
+
+        if not normalized:
+            return False
 
         order_phrases = [
             "i want to order",
@@ -175,20 +163,52 @@ class KenyaBizCLI:
             "i want to buy",
             "i would like to buy",
             "i'd like to buy",
-            "i want",
-            "i would like",
-            "i'd like",
         ]
 
         product_terms = [
+            # Furniture
             "chair",
             "chairs",
             "office chair",
             "office chairs",
+            "visitor chair",
+            "visitor chairs",
             "desk",
             "desks",
             "office desk",
             "office desks",
+            "executive desk",
+            "executive desks",
+            "cabinet",
+            "cabinets",
+            "office cabinet",
+            "office cabinets",
+            "meeting table",
+            "meeting tables",
+            "table",
+            "tables",
+
+            # Accessories
+            "laptop stand",
+            "laptop stands",
+            "monitor stand",
+            "monitor stands",
+            "keyboard",
+            "keyboards",
+            "mouse",
+            "mice",
+            "wireless mouse",
+            "wireless mice",
+
+            # Other possible catalogue terms
+            "laptop",
+            "laptops",
+            "phone",
+            "phones",
+            "printer",
+            "printers",
+            "monitor",
+            "monitors",
         ]
 
         has_order_phrase = any(
@@ -201,19 +221,14 @@ class KenyaBizCLI:
             for product in product_terms
         )
 
-        return (
-            has_order_phrase
-            and has_product
-        )
+        return has_order_phrase and has_product
 
     # ========================================================
     # INVOICE REQUEST DETECTION
     # ========================================================
 
-    def contains_invoice_request(
-        self,
-        message,
-    ):
+    def contains_invoice_request(self, message):
+        """Detect invoice, billing, or receipt requests."""
 
         normalized = self.normalize_text(message)
 
@@ -252,10 +267,8 @@ class KenyaBizCLI:
     # PAYMENT REQUEST
     # ========================================================
 
-    def contains_payment_request(
-        self,
-        message,
-    ):
+    def contains_payment_request(self, message):
+        """Detect a request to initiate a payment."""
 
         normalized = self.normalize_text(message)
 
@@ -308,10 +321,8 @@ class KenyaBizCLI:
     # PAYMENT COMPLETION
     # ========================================================
 
-    def contains_payment_completion_request(
-        self,
-        message,
-    ):
+    def contains_payment_completion_request(self, message):
+        """Detect a request to mark/complete an existing payment."""
 
         normalized = self.normalize_text(message)
 
@@ -348,10 +359,8 @@ class KenyaBizCLI:
     # PAYMENT STATUS
     # ========================================================
 
-    def contains_payment_status_request(
-        self,
-        message,
-    ):
+    def contains_payment_status_request(self, message):
+        """Detect a request to check payment status."""
 
         normalized = self.normalize_text(message)
 
@@ -385,10 +394,8 @@ class KenyaBizCLI:
     # NAME EXTRACTION
     # ========================================================
 
-    def extract_name(
-        self,
-        message,
-    ):
+    def extract_name(self, message):
+        """Extract a customer name from common natural-language forms."""
 
         if not message:
             return None
@@ -401,7 +408,6 @@ class KenyaBizCLI:
         ]
 
         for pattern in patterns:
-
             match = re.match(
                 pattern,
                 text,
@@ -409,16 +415,14 @@ class KenyaBizCLI:
             )
 
             if match:
-
                 name = match.group(1).strip()
 
                 if self.looks_like_name(name):
                     return name
 
-        # Plain name such as:
+        # Plain name, for example:
         #
         # Ambrose Lengerpei
-
         if self.looks_like_name(text):
             return text
 
@@ -428,10 +432,8 @@ class KenyaBizCLI:
     # NAME VALIDATION
     # ========================================================
 
-    def looks_like_name(
-        self,
-        text,
-    ):
+    def looks_like_name(self, text):
+        """Basic validation to distinguish names from normal messages."""
 
         if not text:
             return False
@@ -482,7 +484,6 @@ class KenyaBizCLI:
             return False
 
         for word in words:
-
             cleaned = (
                 word
                 .replace("-", "")
@@ -498,10 +499,8 @@ class KenyaBizCLI:
     # PHONE EXTRACTION
     # ========================================================
 
-    def extract_phone(
-        self,
-        message,
-    ):
+    def extract_phone(self, message):
+        """Extract a Kenyan mobile phone number."""
 
         if not message:
             return None
@@ -530,10 +529,8 @@ class KenyaBizCLI:
     # EMAIL EXTRACTION
     # ========================================================
 
-    def extract_email(
-        self,
-        message,
-    ):
+    def extract_email(self, message):
+        """Extract an email address."""
 
         if not message:
             return None
@@ -558,17 +555,13 @@ class KenyaBizCLI:
     # ORDER REFERENCE
     # ========================================================
 
-    def extract_order_reference(
-        self,
-        message,
-    ):
+    def extract_order_reference(self, message):
+        """Extract a KenyaBiz order reference."""
 
         if not message:
             return None
 
-        pattern = (
-            r"\bKBA-\d{8}-[A-Z0-9]+\b"
-        )
+        pattern = r"\bKBA-\d{8}-[A-Z0-9]+\b"
 
         match = re.search(
             pattern,
@@ -584,17 +577,13 @@ class KenyaBizCLI:
     # PAYMENT REFERENCE
     # ========================================================
 
-    def extract_payment_reference(
-        self,
-        message,
-    ):
+    def extract_payment_reference(self, message):
+        """Extract a simulated M-PESA payment reference."""
 
         if not message:
             return None
 
-        pattern = (
-            r"\bMPS[A-Z0-9]+\b"
-        )
+        pattern = r"\bMPS[A-Z0-9]+\b"
 
         match = re.search(
             pattern,
@@ -610,41 +599,27 @@ class KenyaBizCLI:
     # UPDATE CUSTOMER DETAILS
     # ========================================================
 
-    def update_customer_details(
-        self,
-        message,
-    ):
+    def update_customer_details(self, message):
+        """Update stored customer information when supplied."""
 
         changed = False
 
-        name = self.extract_name(
-            message
-        )
+        name = self.extract_name(message)
 
         if name:
-
             self.customer_name = name
-
             changed = True
 
-        phone = self.extract_phone(
-            message
-        )
+        phone = self.extract_phone(message)
 
         if phone:
-
             self.customer_phone = phone
-
             changed = True
 
-        email = self.extract_email(
-            message
-        )
+        email = self.extract_email(message)
 
         if email:
-
             self.customer_email = email
-
             changed = True
 
         return changed
@@ -653,32 +628,27 @@ class KenyaBizCLI:
     # BUILD ORDER MESSAGE
     # ========================================================
 
-    def build_order_message(
-        self,
-        message,
-    ):
+    def build_order_message(self, message):
+        """
+        Add known customer information to an order message
+        before sending it to the Order Agent.
+        """
 
         parts = [message]
 
         if self.customer_name:
-
             parts.append(
-                f"Customer name: "
-                f"{self.customer_name}"
+                f"Customer name: {self.customer_name}"
             )
 
         if self.customer_phone:
-
             parts.append(
-                f"Customer phone: "
-                f"{self.customer_phone}"
+                f"Customer phone: {self.customer_phone}"
             )
 
         if self.customer_email:
-
             parts.append(
-                f"Customer email: "
-                f"{self.customer_email}"
+                f"Customer email: {self.customer_email}"
             )
 
         return "\n".join(parts)
@@ -687,10 +657,8 @@ class KenyaBizCLI:
     # SAVE USER MESSAGE
     # ========================================================
 
-    def save_customer_message(
-        self,
-        message,
-    ):
+    def save_customer_message(self, message):
+        """Add a customer message to conversation history."""
 
         self.conversation_history.append(
             {
@@ -703,10 +671,8 @@ class KenyaBizCLI:
     # SAVE ASSISTANT MESSAGE
     # ========================================================
 
-    def save_assistant_message(
-        self,
-        message,
-    ):
+    def save_assistant_message(self, message):
+        """Add an assistant response to conversation history."""
 
         self.conversation_history.append(
             {
@@ -719,10 +685,8 @@ class KenyaBizCLI:
     # UPDATE STATE FROM GRAPH RESULT
     # ========================================================
 
-    def _update_from_result(
-        self,
-        result,
-    ):
+    def _update_from_result(self, result):
+        """Persist relevant fields returned by LangGraph."""
 
         if not result:
             return
@@ -732,89 +696,63 @@ class KenyaBizCLI:
         )
 
         if order_reference:
-
-            self.order_reference = (
-                order_reference
-            )
+            self.order_reference = order_reference
 
         order_status = result.get(
             "order_status"
         )
 
         if order_status:
-
-            self.order_status = (
-                order_status
-            )
+            self.order_status = order_status
 
         payment_reference = result.get(
             "payment_reference"
         )
 
         if payment_reference:
-
-            self.payment_reference = (
-                payment_reference
-            )
+            self.payment_reference = payment_reference
 
         payment_status = result.get(
             "payment_status"
         )
 
         if payment_status:
-
-            self.payment_status = (
-                payment_status
-            )
+            self.payment_status = payment_status
 
         invoice_path = result.get(
             "invoice_path"
         )
 
         if invoice_path:
-
-            self.invoice_path = (
-                invoice_path
-            )
+            self.invoice_path = invoice_path
 
         customer_name = result.get(
             "customer_name"
         )
 
         if customer_name:
-
-            self.customer_name = (
-                customer_name
-            )
+            self.customer_name = customer_name
 
         customer_phone = result.get(
             "customer_phone"
         )
 
         if customer_phone:
-
-            self.customer_phone = (
-                customer_phone
-            )
+            self.customer_phone = customer_phone
 
         customer_email = result.get(
             "customer_email"
         )
 
         if customer_email:
-
-            self.customer_email = (
-                customer_email
-            )
+            self.customer_email = customer_email
 
     # ========================================================
     # UPDATE PENDING ACTION
     # ========================================================
 
-    def update_pending_action(
-        self,
-        result,
-    ):
+    def update_pending_action(self, result):
+        """Synchronize local workflow state with graph output."""
 
         if not result:
             return
@@ -839,53 +777,37 @@ class KenyaBizCLI:
             "pending_request"
         )
 
-        # ====================================================
+        # ----------------------------------------------------
         # Preserve explicit graph state
-        # ====================================================
+        # ----------------------------------------------------
 
-        if pending_action:
-
-            self.pending_action = (
-                pending_action
-            )
+        if pending_action is not None:
+            self.pending_action = pending_action
 
         if pending_request is not None:
+            self.pending_request = pending_request
 
-            self.pending_request = (
-                pending_request
-            )
-
-        # ====================================================
+        # ----------------------------------------------------
         # ORDER
-        # ====================================================
+        # ----------------------------------------------------
 
         if destination == "order":
 
-            if order_status == (
-                "AWAITING_CONFIRMATION"
-            ):
-
+            if order_status == "AWAITING_CONFIRMATION":
                 self.pending_action = (
                     "ORDER_CONFIRMATION"
                 )
-
                 return
 
-            if order_status == (
-                "CUSTOMER_DETAILS_REQUIRED"
-            ):
-
+            if order_status == "CUSTOMER_DETAILS_REQUIRED":
                 self.pending_action = (
                     "ORDER_CUSTOMER_NAME"
                 )
-
                 return
 
             if status == "COMPLETED":
-
                 self.pending_action = None
                 self.pending_request = None
-
                 return
 
             response = result.get(
@@ -901,11 +823,9 @@ class KenyaBizCLI:
                 "confirm that you would like"
                 in response_lower
             ):
-
                 self.pending_action = (
                     "ORDER_CONFIRMATION"
                 )
-
                 return
 
             if (
@@ -913,68 +833,56 @@ class KenyaBizCLI:
                 or
                 "your name" in response_lower
             ):
-
                 self.pending_action = (
                     "ORDER_CUSTOMER_NAME"
                 )
-
                 return
 
-        # ====================================================
+        # ----------------------------------------------------
         # INVOICE
-        # ====================================================
+        # ----------------------------------------------------
 
         if destination == "invoice":
 
             if pending_action == (
                 "INVOICE_ORDER_REFERENCE"
             ):
-
                 self.pending_action = (
                     "INVOICE_ORDER_REFERENCE"
                 )
-
                 return
 
             if status == "COMPLETED":
-
                 self.pending_action = None
                 self.pending_request = None
-
                 return
 
             if self.invoice_path:
-
                 self.pending_action = None
                 self.pending_request = None
-
                 return
 
-        # ====================================================
+        # ----------------------------------------------------
         # PAYMENT
-        # ====================================================
+        # ----------------------------------------------------
 
         if destination == "payment":
 
             if pending_action == (
                 "PAYMENT_ORDER_REFERENCE"
             ):
-
                 self.pending_action = (
                     "PAYMENT_ORDER_REFERENCE"
                 )
-
                 return
 
             if status == "COMPLETED":
-
                 self.pending_action = None
                 self.pending_request = None
-
                 return
 
     # ========================================================
-    # RUN AGENT
+    # RUN LANGGRAPH
     # ========================================================
 
     def _run_agent(
@@ -982,14 +890,15 @@ class KenyaBizCLI:
         message,
         forced_destination=None,
     ):
+        """
+        Send the current message and conversation state
+        to the LangGraph workflow.
+        """
 
         result = run_kenyabiz(
-
             customer_message=message,
 
-            forced_destination=(
-                forced_destination
-            ),
+            forced_destination=forced_destination,
 
             conversation_history=(
                 self.conversation_history
@@ -1007,11 +916,6 @@ class KenyaBizCLI:
                 self.pending_action
             ),
 
-            # =================================================
-            # IMPORTANT:
-            # Persist order state
-            # =================================================
-
             order_reference=(
                 self.order_reference
             ),
@@ -1020,18 +924,9 @@ class KenyaBizCLI:
                 self.order_status
             ),
 
-            # =================================================
-            # Persist invoice state
-            # =================================================
-
             invoice_path=(
                 self.invoice_path
             ),
-
-            # =================================================
-            # IMPORTANT:
-            # Persist payment state
-            # =================================================
 
             payment_reference=(
                 self.payment_reference
@@ -1043,7 +938,6 @@ class KenyaBizCLI:
         )
 
         if not result:
-
             response = (
                 "I was unable to process "
                 "your request."
@@ -1055,9 +949,9 @@ class KenyaBizCLI:
 
             return response
 
-        # ====================================================
+        # ----------------------------------------------------
         # Update state
-        # ====================================================
+        # ----------------------------------------------------
 
         self._update_from_result(
             result
@@ -1066,18 +960,13 @@ class KenyaBizCLI:
         if result.get(
             "order_confirmed"
         ) is not None:
-
             self.order_confirmed = (
                 result.get(
                     "order_confirmed"
                 )
             )
 
-        if (
-            "pending_request"
-            in result
-        ):
-
+        if "pending_request" in result:
             self.pending_request = (
                 result.get(
                     "pending_request"
@@ -1088,22 +977,20 @@ class KenyaBizCLI:
             result
         )
 
-        # ====================================================
+        # ----------------------------------------------------
         # Response
-        # ====================================================
+        # ----------------------------------------------------
 
         response = result.get(
             "response"
         )
 
         if not response:
-
             response = result.get(
                 "message"
             )
 
         if not response:
-
             response = (
                 "I was unable to generate "
                 "a response."
@@ -1119,19 +1006,21 @@ class KenyaBizCLI:
     # HANDLE MESSAGE
     # ========================================================
 
-    def handle_message(
-        self,
-        message,
-    ):
+    def handle_message(self, message):
+        """
+        Process one customer message.
+
+        This method manages conversation/session state while
+        LangGraph remains responsible for specialist routing
+        and business processing.
+        """
 
         if not message:
-
             return "Please enter a message."
 
         message = message.strip()
 
         if not message:
-
             return "Please enter a message."
 
         normalized = self.normalize_text(
@@ -1139,7 +1028,7 @@ class KenyaBizCLI:
         )
 
         # ====================================================
-        # Exit
+        # EXIT
         # ====================================================
 
         if normalized in {
@@ -1148,11 +1037,10 @@ class KenyaBizCLI:
             "bye",
             "goodbye",
         }:
-
             return "Goodbye!"
 
         # ====================================================
-        # Reset
+        # RESET
         # ====================================================
 
         if normalized in {
@@ -1160,7 +1048,6 @@ class KenyaBizCLI:
             "start over",
             "new conversation",
         }:
-
             self.reset()
 
             return (
@@ -1168,7 +1055,7 @@ class KenyaBizCLI:
             )
 
         # ====================================================
-        # Save customer message
+        # SAVE CUSTOMER MESSAGE
         # ====================================================
 
         self.save_customer_message(
@@ -1176,7 +1063,7 @@ class KenyaBizCLI:
         )
 
         # ====================================================
-        # Extract customer details
+        # UPDATE CUSTOMER DETAILS
         # ====================================================
 
         self.update_customer_details(
@@ -1203,7 +1090,6 @@ class KenyaBizCLI:
                 )
 
                 if self.pending_request:
-
                     confirmation_message += (
                         "\n\n"
                         + self.pending_request
@@ -1218,20 +1104,16 @@ class KenyaBizCLI:
                 message
             ):
 
-                self.pending_action = None
-                self.pending_request = None
-                self.order_confirmed = False
-
-                response = (
-                    "No problem. The order has "
-                    "not been created."
+                # Let the graph/order workflow handle
+                # the cancellation consistently.
+                cancellation_message = (
+                    "Customer declined the order."
                 )
 
-                self.save_assistant_message(
-                    response
+                return self._run_agent(
+                    message=cancellation_message,
+                    forced_destination="order",
                 )
-
-                return response
 
         # ====================================================
         # 2. CUSTOMER NAME FOR ORDER
@@ -1301,14 +1183,12 @@ class KenyaBizCLI:
                 )
 
                 if self.customer_phone:
-
                     order_message += (
                         "\nCustomer phone: "
                         + self.customer_phone
                     )
 
                 if self.customer_email:
-
                     order_message += (
                         "\nCustomer email: "
                         + self.customer_email
@@ -1391,15 +1271,9 @@ class KenyaBizCLI:
             )
 
             if order_reference:
-
                 self.order_reference = (
                     order_reference
                 )
-
-            # ------------------------------------------------
-            # If we already know the order reference,
-            # use it directly.
-            # ------------------------------------------------
 
             if self.order_reference:
 
@@ -1416,11 +1290,6 @@ class KenyaBizCLI:
                     message=invoice_message,
                     forced_destination="invoice",
                 )
-
-            # ------------------------------------------------
-            # No order reference yet.
-            # Let invoice agent request it.
-            # ------------------------------------------------
 
             self.pending_request = None
 
@@ -1441,11 +1310,6 @@ class KenyaBizCLI:
             message
         ):
 
-            # ------------------------------------------------
-            # If the customer provides a payment reference,
-            # save it.
-            # ------------------------------------------------
-
             payment_reference = (
                 self.extract_payment_reference(
                     message
@@ -1453,14 +1317,9 @@ class KenyaBizCLI:
             )
 
             if payment_reference:
-
                 self.payment_reference = (
                     payment_reference
                 )
-
-            # ------------------------------------------------
-            # If an order reference is included, save it.
-            # ------------------------------------------------
 
             order_reference = (
                 self.extract_order_reference(
@@ -1469,23 +1328,9 @@ class KenyaBizCLI:
             )
 
             if order_reference:
-
                 self.order_reference = (
                     order_reference
                 )
-
-            # ------------------------------------------------
-            # IMPORTANT:
-            # Do NOT clear the existing payment reference.
-            #
-            # This allows:
-            #
-            # "I have paid"
-            #
-            # to use the previously generated:
-            #
-            # MPSWAPALF25
-            # ------------------------------------------------
 
             return self._run_agent(
                 message=message,
@@ -1507,7 +1352,6 @@ class KenyaBizCLI:
             )
 
             if payment_reference:
-
                 self.payment_reference = (
                     payment_reference
                 )
@@ -1532,7 +1376,6 @@ class KenyaBizCLI:
             )
 
             if order_reference:
-
                 self.order_reference = (
                     order_reference
                 )
@@ -1605,7 +1448,6 @@ class KenyaBizCLI:
         )
 
         if order_reference:
-
             self.order_reference = (
                 order_reference
             )
@@ -1624,6 +1466,7 @@ class KenyaBizCLI:
     # ========================================================
 
     def main(self):
+        """Run the interactive command-line application."""
 
         print("=" * 70)
         print("KENYABIZ AI")
@@ -1655,7 +1498,6 @@ class KenyaBizCLI:
         while True:
 
             try:
-
                 message = input(
                     "You: "
                 ).strip()
@@ -1666,7 +1508,6 @@ class KenyaBizCLI:
             ):
 
                 print()
-
                 print(
                     "KenyaBiz AI: Goodbye!"
                 )
@@ -1675,56 +1516,6 @@ class KenyaBizCLI:
 
             if not message:
                 continue
-
-            normalized = self.normalize_text(
-                message
-            )
-
-            # ------------------------------------------------
-            # Exit
-            # ------------------------------------------------
-
-            if normalized in {
-                "exit",
-                "quit",
-                "bye",
-                "goodbye",
-            }:
-
-                print()
-
-                print(
-                    "KenyaBiz AI: Goodbye!"
-                )
-
-                break
-
-            # ------------------------------------------------
-            # Reset
-            # ------------------------------------------------
-
-            if normalized in {
-                "reset",
-                "start over",
-                "new conversation",
-            }:
-
-                self.reset()
-
-                print()
-
-                print(
-                    "KenyaBiz AI: "
-                    "The conversation has been reset."
-                )
-
-                print()
-
-                continue
-
-            # ------------------------------------------------
-            # Process message
-            # ------------------------------------------------
 
             try:
 
@@ -1740,28 +1531,60 @@ class KenyaBizCLI:
                     f"{error}"
                 )
 
-            print()
+            # ------------------------------------------------
+            # Handle exit after processing
+            # ------------------------------------------------
 
+            if self.normalize_text(
+                message
+            ) in {
+                "exit",
+                "quit",
+                "bye",
+                "goodbye",
+            }:
+
+                print()
+                print(
+                    "KenyaBiz AI:"
+                )
+                print(
+                    response
+                )
+                print()
+
+                break
+
+            # ------------------------------------------------
+            # Display response
+            # ------------------------------------------------
+
+            print()
             print(
                 "KenyaBiz AI:"
             )
-
             print(
                 response
             )
-
             print()
+
+
+# ============================================================
+# BACKWARD COMPATIBILITY
+# ============================================================
+
+# Streamlit and any existing code that uses KenyaBizCLI
+# can continue working.
+
+KenyaBizCLI = KenyaBizConversation
 
 
 # ============================================================
 # APPLICATION ENTRY POINT
 # ============================================================
 
-
 def main():
-
-    app = KenyaBizCLI()
-
+    app = KenyaBizConversation()
     app.main()
 
 

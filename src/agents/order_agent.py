@@ -1,12 +1,17 @@
 from typing import Optional, List
+
 from pathlib import Path
+
 import re
 
 from dotenv import load_dotenv
+
 from langchain_groq import ChatGroq
+
 from pydantic import BaseModel, Field
 
 from src.tools.product_tool import search_products, check_stock
+
 from src.tools.order_tool import create_order, get_order
 
 
@@ -137,6 +142,7 @@ def extract_customer_information(
     ]
 
     for pattern in name_patterns:
+
         match = re.search(
             pattern,
             customer_message,
@@ -144,9 +150,10 @@ def extract_customer_information(
         )
 
         if match:
+
             candidate = match.group(1).strip()
 
-            # Remove trailing conversational words
+            # Remove trailing conversational words.
             candidate = re.split(
                 r"\b(?:and|my|phone|email|number)\b",
                 candidate,
@@ -184,52 +191,68 @@ def fallback_extract_order_items(
     text = customer_message.lower()
 
     product_patterns = {
+
         "office chair": [
             r"(\d+)\s+(?:office\s+)?chairs?",
         ],
+
         "office desk": [
             r"(\d+)\s+(?:office\s+)?desks?",
         ],
+
         "chair": [
             r"(\d+)\s+chairs?",
         ],
+
         "desk": [
             r"(\d+)\s+desks?",
         ],
+
         "laptop stand": [
             r"(\d+)\s+(?:laptop\s+)?stands?",
         ],
+
         "office cabinet": [
             r"(\d+)\s+(?:office\s+)?cabinets?",
         ],
+
         "visitor chair": [
             r"(\d+)\s+visitor\s+chairs?",
         ],
+
         "executive desk": [
             r"(\d+)\s+executive\s+desks?",
         ],
+
         "monitor stand": [
             r"(\d+)\s+monitor\s+stands?",
         ],
-        "keyboard": [
-            r"(\d+)\s+keyboards?",
-        ],
+
         "wireless mouse": [
             r"(\d+)\s+wireless\s+mice",
             r"(\d+)\s+wireless\s+mouses?",
         ],
+
         "meeting table": [
             r"(\d+)\s+meeting\s+tables?",
         ],
+
+        "keyboard": [
+            r"(\d+)\s+keyboards?",
+        ],
+
         "phone": [
             r"(\d+)\s+phones?",
         ],
+
         "laptop": [
             r"(\d+)\s+laptops?",
         ],
+
         "printer": [
             r"(\d+)\s+printers?",
         ],
+
         "monitor": [
             r"(\d+)\s+monitors?",
         ],
@@ -237,29 +260,95 @@ def fallback_extract_order_items(
 
     # Prefer specific products first.
     ordered_patterns = [
-        ("office chair", product_patterns["office chair"]),
-        ("office desk", product_patterns["office desk"]),
-        ("laptop stand", product_patterns["laptop stand"]),
-        ("office cabinet", product_patterns["office cabinet"]),
-        ("visitor chair", product_patterns["visitor chair"]),
-        ("executive desk", product_patterns["executive desk"]),
-        ("monitor stand", product_patterns["monitor stand"]),
-        ("wireless mouse", product_patterns["wireless mouse"]),
-        ("meeting table", product_patterns["meeting table"]),
-        ("keyboard", product_patterns["keyboard"]),
-        ("chair", product_patterns["chair"]),
-        ("desk", product_patterns["desk"]),
-        ("phone", product_patterns["phone"]),
-        ("laptop", product_patterns["laptop"]),
-        ("printer", product_patterns["printer"]),
-        ("monitor", product_patterns["monitor"]),
+
+        (
+            "office chair",
+            product_patterns["office chair"],
+        ),
+
+        (
+            "office desk",
+            product_patterns["office desk"],
+        ),
+
+        (
+            "laptop stand",
+            product_patterns["laptop stand"],
+        ),
+
+        (
+            "office cabinet",
+            product_patterns["office cabinet"],
+        ),
+
+        (
+            "visitor chair",
+            product_patterns["visitor chair"],
+        ),
+
+        (
+            "executive desk",
+            product_patterns["executive desk"],
+        ),
+
+        (
+            "monitor stand",
+            product_patterns["monitor stand"],
+        ),
+
+        (
+            "wireless mouse",
+            product_patterns["wireless mouse"],
+        ),
+
+        (
+            "meeting table",
+            product_patterns["meeting table"],
+        ),
+
+        (
+            "keyboard",
+            product_patterns["keyboard"],
+        ),
+
+        (
+            "chair",
+            product_patterns["chair"],
+        ),
+
+        (
+            "desk",
+            product_patterns["desk"],
+        ),
+
+        (
+            "phone",
+            product_patterns["phone"],
+        ),
+
+        (
+            "laptop",
+            product_patterns["laptop"],
+        ),
+
+        (
+            "printer",
+            product_patterns["printer"],
+        ),
+
+        (
+            "monitor",
+            product_patterns["monitor"],
+        ),
     ]
 
     items = []
     already_added = set()
 
     for product_name, patterns in ordered_patterns:
+
         for pattern in patterns:
+
             match = re.search(
                 pattern,
                 text,
@@ -268,7 +357,9 @@ def fallback_extract_order_items(
             if not match:
                 continue
 
-            quantity = int(match.group(1))
+            quantity = int(
+                match.group(1)
+            )
 
             normalized_product = normalize_product_name(
                 product_name
@@ -277,7 +368,9 @@ def fallback_extract_order_items(
             if normalized_product in already_added:
                 continue
 
-            already_added.add(normalized_product)
+            already_added.add(
+                normalized_product
+            )
 
             items.append(
                 OrderItem(
@@ -311,6 +404,7 @@ def extract_order_information(
     # --------------------------------------------------------
 
     try:
+
         result = structured_llm.invoke(
             f"""
 Extract the order information from the following
@@ -353,6 +447,7 @@ Customer conversation:
             return result
 
     except Exception as error:
+
         print()
         print(
             "STRUCTURED ORDER EXTRACTION WARNING:"
@@ -395,14 +490,14 @@ def normalize_product_name(
 
     name = product_name.lower().strip()
 
-    # Replace punctuation with spaces
+    # Replace punctuation with spaces.
     name = re.sub(
         r"[^a-z0-9\s]",
         " ",
         name,
     )
 
-    # Normalize whitespace
+    # Normalize whitespace.
     name = re.sub(
         r"\s+",
         " ",
@@ -414,24 +509,41 @@ def normalize_product_name(
     # --------------------------------------------------------
 
     aliases = {
+
         "office chairs": "office chair",
+
         "office desks": "office desk",
+
         "laptop stands": "laptop stand",
+
         "office cabinets": "office cabinet",
+
         "visitor chairs": "visitor chair",
+
         "executive desks": "executive desk",
+
         "monitor stands": "monitor stand",
+
         "meeting tables": "meeting table",
 
         "chairs": "chair",
+
         "desks": "desk",
+
         "tables": "table",
+
         "keyboards": "keyboard",
+
         "phones": "phone",
+
         "laptops": "laptop",
+
         "printers": "printer",
+
         "monitors": "monitor",
+
         "cabinets": "cabinet",
+
         "stands": "stand",
     }
 
@@ -443,15 +555,25 @@ def normalize_product_name(
     # --------------------------------------------------------
 
     plural_map = {
+
         "chairs": "chair",
+
         "desks": "desk",
+
         "tables": "table",
+
         "keyboards": "keyboard",
+
         "phones": "phone",
+
         "laptops": "laptop",
+
         "printers": "printer",
+
         "monitors": "monitor",
+
         "cabinets": "cabinet",
+
         "stands": "stand",
     }
 
@@ -495,10 +617,8 @@ def find_product_matches(
     ]
 
     # Special search support for wireless mice.
-    # The normalization test intentionally preserves
-    # "wireless mice", but the catalogue may contain
-    # "Wireless Mouse".
     if normalized_name == "wireless mice":
+
         search_terms.extend(
             [
                 "wireless mouse",
@@ -509,13 +629,16 @@ def find_product_matches(
     matches = []
 
     for term in search_terms:
+
         if not term:
             continue
 
         try:
+
             results = search_products(
                 term
             )
+
         except Exception:
             continue
 
@@ -523,6 +646,7 @@ def find_product_matches(
             continue
 
         for product in results:
+
             product_id = product.get(
                 "product_id"
             )
@@ -531,12 +655,15 @@ def find_product_matches(
                 continue
 
             if any(
-                item.get("product_id") == product_id
+                item.get("product_id")
+                == product_id
                 for item in matches
             ):
                 continue
 
-            matches.append(product)
+            matches.append(
+                product
+            )
 
     # --------------------------------------------------------
     # EXACT NORMALIZED MATCH
@@ -545,6 +672,7 @@ def find_product_matches(
     exact_matches = []
 
     for product in matches:
+
         product_name_db = product.get(
             "product_name",
             "",
@@ -554,17 +682,22 @@ def find_product_matches(
             product_name_db
         )
 
-        # Normal exact match
         if db_normalized == normalized_name:
-            exact_matches.append(product)
+
+            exact_matches.append(
+                product
+            )
+
             continue
 
-        # Special handling for wireless mice.
         if (
             normalized_name == "wireless mice"
             and db_normalized == "wireless mouse"
         ):
-            exact_matches.append(product)
+
+            exact_matches.append(
+                product
+            )
 
     if exact_matches:
         return exact_matches
@@ -580,6 +713,7 @@ def find_product_matches(
     token_matches = []
 
     for product in matches:
+
         db_name = normalize_product_name(
             product.get(
                 "product_name",
@@ -587,13 +721,15 @@ def find_product_matches(
             )
         )
 
-        # Special irregular plural handling.
         if normalized_name == "wireless mice":
+
             db_name_for_tokens = db_name.replace(
                 "mouse",
                 "mice",
             )
+
         else:
+
             db_name_for_tokens = db_name
 
         db_tokens = set(
@@ -603,7 +739,10 @@ def find_product_matches(
         if requested_tokens.issubset(
             db_tokens
         ):
-            token_matches.append(product)
+
+            token_matches.append(
+                product
+            )
 
     return token_matches or matches
 
@@ -615,11 +754,16 @@ def find_product_matches(
 def find_product(
     product_name: str,
 ):
+    """
+    Find one product or identify ambiguity.
+    """
+
     matches = find_product_matches(
         product_name
     )
 
     if not matches:
+
         return {
             "status": "NOT_FOUND",
             "product": None,
@@ -627,6 +771,7 @@ def find_product(
         }
 
     if len(matches) == 1:
+
         return {
             "status": "FOUND",
             "product": matches[0],
@@ -647,7 +792,23 @@ def find_product(
 def validate_order_items(
     items: List[OrderItem],
 ):
+    """
+    Validate order items.
+
+    Checks:
+    - Items exist
+    - Quantities are valid
+    - Products exist
+    - Stock is sufficient
+
+    check_stock() is supported whether it returns:
+    - a dictionary containing "available"
+    - True
+    - False
+    """
+
     if not items:
+
         return {
             "status": "ERROR",
             "message": (
@@ -657,6 +818,7 @@ def validate_order_items(
         }
 
     validated_items = []
+
     unavailable_products = []
 
     for item in items:
@@ -666,6 +828,7 @@ def validate_order_items(
         # ----------------------------------------------------
 
         if item.quantity <= 0:
+
             return {
                 "status": "ERROR",
                 "message": (
@@ -697,9 +860,11 @@ def validate_order_items(
         # ----------------------------------------------------
 
         if product_result["status"] == "NOT_FOUND":
+
             unavailable_products.append(
                 item.product_name
             )
+
             continue
 
         # ----------------------------------------------------
@@ -707,13 +872,16 @@ def validate_order_items(
         # ----------------------------------------------------
 
         if product_result["status"] == "AMBIGUOUS":
+
             return {
                 "status": "AMBIGUOUS_PRODUCT",
                 "message": (
                     f"Multiple products matched "
                     f"'{item.product_name}'."
                 ),
-                "matches": product_result["matches"],
+                "matches": product_result[
+                    "matches"
+                ],
                 "items": [],
             }
 
@@ -727,27 +895,112 @@ def validate_order_items(
             "product_id"
         )
 
+        if not product_id:
+
+            return {
+                "status": "ERROR",
+                "message": (
+                    f"Product ID is missing for "
+                    f"{product.get('product_name', item.product_name)}."
+                ),
+                "items": [],
+            }
+
         # ----------------------------------------------------
         # CHECK STOCK
         # ----------------------------------------------------
 
         try:
+
             stock_result = check_stock(
                 product_id,
                 item.quantity,
             )
-        except Exception:
-            stock_result = False
 
-        if not stock_result:
+        except Exception:
+
             return {
-                "status": "INSUFFICIENT_STOCK",
+                "status": "ERROR",
                 "message": (
-                    f"Insufficient stock for "
+                    f"Unable to check stock for "
                     f"{product.get('product_name', item.product_name)}."
                 ),
                 "items": [],
             }
+
+        # ----------------------------------------------------
+        # HANDLE BOTH CHECK_STOCK RETURN TYPES
+        # ----------------------------------------------------
+        #
+        # Real product tool may return:
+        #
+        # {
+        #     "available": True,
+        #     ...
+        # }
+        #
+        # Existing unit test may mock:
+        #
+        # False
+        #
+        # Therefore both forms are supported.
+        # ----------------------------------------------------
+
+        if isinstance(
+            stock_result,
+            dict,
+        ):
+
+            stock_available = stock_result.get(
+                "available",
+                False,
+            )
+
+            available_quantity = stock_result.get(
+                "available_quantity",
+                stock_result.get(
+                    "stock",
+                    0,
+                ),
+            )
+
+        elif isinstance(
+            stock_result,
+            bool,
+        ):
+
+            stock_available = stock_result
+
+            available_quantity = 0
+
+        else:
+
+            stock_available = bool(
+                stock_result
+            )
+
+            available_quantity = 0
+
+        # ----------------------------------------------------
+        # INSUFFICIENT STOCK
+        # ----------------------------------------------------
+
+        if not stock_available:
+
+            return {
+                "status": "INSUFFICIENT_STOCK",
+                "message": (
+                    f"Insufficient stock for "
+                    f"{product.get('product_name', item.product_name)}. "
+                    f"Requested: {item.quantity}. "
+                    f"Available: {available_quantity}."
+                ),
+                "items": [],
+            }
+
+        # ----------------------------------------------------
+        # VALIDATED ITEM
+        # ----------------------------------------------------
 
         validated_items.append(
             {
@@ -761,6 +1014,7 @@ def validate_order_items(
     # --------------------------------------------------------
 
     if unavailable_products:
+
         return {
             "status": "PRODUCT_NOT_FOUND",
             "message": (
@@ -784,6 +1038,47 @@ def validate_order_items(
 
 
 # ============================================================
+# ORDER DECLINE DETECTION
+# ============================================================
+
+def is_order_decline(
+    customer_message: str,
+) -> bool:
+    """
+    Detect a customer's decision not to proceed
+    with a pending order.
+    """
+
+    if not customer_message:
+        return False
+
+    normalized = re.sub(
+        r"\s+",
+        " ",
+        customer_message.lower().strip(),
+    )
+
+    decline_phrases = [
+        "no",
+        "no thanks",
+        "no thank you",
+        "cancel",
+        "cancel it",
+        "cancel the order",
+        "do not proceed",
+        "don't proceed",
+        "do not place",
+        "don't place",
+    ]
+
+    return any(
+        phrase == normalized
+        or phrase in normalized
+        for phrase in decline_phrases
+    )
+
+
+# ============================================================
 # PROCESS ORDER
 # ============================================================
 
@@ -795,10 +1090,17 @@ def process_order(
     """
     Process a customer order.
 
-    Orders require confirmation before creation.
+    Workflow:
+
+    1. Extract the order.
+    2. Validate products and stock.
+    3. Ask for confirmation.
+    4. After confirmation, request customer details.
+    5. Create the order.
     """
 
     if not customer_message:
+
         return {
             "status": "ERROR",
             "message": (
@@ -807,15 +1109,21 @@ def process_order(
         }
 
     # --------------------------------------------------------
-    # CONFIRMATION REQUIRED
+    # DECLINE / CANCELLATION
     # --------------------------------------------------------
 
-    if not confirmed:
+    if (
+        pending_request
+        and is_order_decline(
+            customer_message
+        )
+    ):
+
         return {
-            "status": "AWAITING_CONFIRMATION",
+            "status": "CANCELLED",
             "message": (
-                "Please confirm that you would "
-                "like to proceed with the order."
+                "Your order has not been placed. "
+                "The order request has been cancelled."
             ),
         }
 
@@ -826,6 +1134,7 @@ def process_order(
     extraction_message = customer_message
 
     if pending_request:
+
         extraction_message = (
             f"{pending_request}\n"
             f"{customer_message}"
@@ -836,14 +1145,46 @@ def process_order(
     # --------------------------------------------------------
 
     try:
+
         order_request = extract_order_information(
             extraction_message
         )
 
     except Exception as error:
+
         return {
             "status": "ERROR",
             "message": str(error),
+        }
+
+    # --------------------------------------------------------
+    # VALIDATE PRODUCTS AND STOCK
+    # --------------------------------------------------------
+
+    validation_result = validate_order_items(
+        order_request.items
+    )
+
+    if validation_result["status"] != "SUCCESS":
+
+        return validation_result
+
+    # --------------------------------------------------------
+    # CONFIRMATION REQUIRED
+    # --------------------------------------------------------
+
+    if not confirmed:
+
+        return {
+            "status": "AWAITING_CONFIRMATION",
+            "message": (
+                "Your requested products are available. "
+                "Please confirm that you would like "
+                "to proceed with the order."
+            ),
+            "items": validation_result[
+                "items"
+            ],
         }
 
     # --------------------------------------------------------
@@ -853,37 +1194,34 @@ def process_order(
     customer = order_request.customer
 
     if not customer.name:
+
         return {
             "status": "CUSTOMER_DETAILS_REQUIRED",
             "message": (
                 "Please provide your name."
             ),
+            "items": validation_result[
+                "items"
+            ],
         }
-
-    # --------------------------------------------------------
-    # VALIDATE PRODUCTS
-    # --------------------------------------------------------
-
-    validation_result = validate_order_items(
-        order_request.items
-    )
-
-    if validation_result["status"] != "SUCCESS":
-        return validation_result
 
     # --------------------------------------------------------
     # CREATE ORDER
     # --------------------------------------------------------
 
     try:
+
         order_result = create_order(
             customer_name=customer.name,
-            items=validation_result["items"],
+            items=validation_result[
+                "items"
+            ],
             phone=customer.phone,
             email=customer.email,
         )
 
     except Exception as error:
+
         return {
             "status": "ERROR",
             "message": (
@@ -897,6 +1235,7 @@ def process_order(
     # --------------------------------------------------------
 
     if not order_result:
+
         return {
             "status": "ERROR",
             "message": (
@@ -904,9 +1243,15 @@ def process_order(
             ),
         }
 
-    if isinstance(order_result, dict):
+    if isinstance(
+        order_result,
+        dict,
+    ):
 
-        if order_result.get("status") != "SUCCESS":
+        if order_result.get(
+            "status"
+        ) != "SUCCESS":
+
             return {
                 "status": "ERROR",
                 "message": (
@@ -941,15 +1286,25 @@ def format_order_response(result):
     )
 
     if status == "AWAITING_CONFIRMATION":
+
         return (
-            "Please confirm that you would "
-            "like to proceed with the order."
+            "Your requested products are available. "
+            "Please confirm that you would like "
+            "to proceed with the order."
         )
 
     if status == "CUSTOMER_DETAILS_REQUIRED":
+
         return result.get(
             "message",
             "Please provide your customer details.",
+        )
+
+    if status == "CANCELLED":
+
+        return result.get(
+            "message",
+            "Your order has been cancelled.",
         )
 
     if status == "AMBIGUOUS_PRODUCT":
@@ -978,18 +1333,21 @@ def format_order_response(result):
         )
 
     if status == "PRODUCT_NOT_FOUND":
+
         return result.get(
             "message",
             "One or more products could not be found.",
         )
 
     if status == "INSUFFICIENT_STOCK":
+
         return result.get(
             "message",
             "There is insufficient stock.",
         )
 
     if status == "ERROR":
+
         return (
             "I could not create "
             "the order.\n\n"
@@ -1010,6 +1368,7 @@ def format_order_response(result):
             order,
             dict,
         ):
+
             return (
                 "Order created successfully."
             )
@@ -1048,13 +1407,19 @@ def format_order_response(result):
         )
 
         lines = [
+
             "Order created successfully.",
+
             "",
+
             f"Order reference: "
             f"{order_reference}",
+
             f"Customer: "
             f"{customer_name}",
+
             "",
+
             "Order summary:",
         ]
 
@@ -1086,17 +1451,23 @@ def format_order_response(result):
 
         lines.extend(
             [
+
                 "",
+
                 f"Subtotal: "
                 f"KES {subtotal:,.2f}",
+
                 f"Delivery fee: "
                 f"KES {delivery_fee:,.2f}",
+
                 f"Total: "
                 f"KES {total:,.2f}",
             ]
         )
 
-        return "\n".join(lines)
+        return "\n".join(
+            lines
+        )
 
     return result.get(
         "message",
@@ -1113,6 +1484,7 @@ def lookup_order(
 ):
 
     if not order_reference:
+
         return {
             "status": "ERROR",
             "message": (
@@ -1121,6 +1493,7 @@ def lookup_order(
         }
 
     try:
+
         order_reference = (
             order_reference
             .strip()
@@ -1132,6 +1505,7 @@ def lookup_order(
         )
 
         if not order:
+
             return {
                 "status": "NOT_FOUND",
                 "message": (
@@ -1147,6 +1521,7 @@ def lookup_order(
         }
 
     except Exception as error:
+
         return {
             "status": "ERROR",
             "message": (
@@ -1165,9 +1540,11 @@ def format_existing_order(
 ):
 
     if result["status"] == "NOT_FOUND":
+
         return result["message"]
 
     if result["status"] != "SUCCESS":
+
         return (
             "I could not retrieve "
             "the order.\n\n"
@@ -1180,15 +1557,22 @@ def format_existing_order(
     order = result["order"]
 
     lines = [
+
         "Order details:",
+
         "",
+
         f"Order reference: "
         f"{order.get('order_reference', '')}",
+
         f"Customer: "
         f"{order.get('customer_name', '')}",
+
         f"Status: "
         f"{order.get('status', '')}",
+
         "",
+
         "Items:",
     ]
 
@@ -1214,14 +1598,20 @@ def format_existing_order(
 
     lines.extend(
         [
+
             "",
+
             f"Subtotal: "
             f"KES {order.get('subtotal', 0):,.2f}",
+
             f"Delivery fee: "
             f"KES {order.get('delivery_fee', 0):,.2f}",
+
             f"Total: "
             f"KES {order.get('total', 0):,.2f}",
         ]
     )
 
-    return "\n".join(lines)
+    return "\n".join(
+        lines
+    )

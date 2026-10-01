@@ -39,8 +39,10 @@ def test_product_price_question():
     assert result["status"] == "COMPLETED"
     assert result["response"]
 
-    assert "keyboard" in result["response"].lower()
-    assert "2,800" in result["response"]
+    response = result["response"].lower()
+
+    assert "keyboard" in response
+    assert "2,800" in response
 
 
 # ============================================================
@@ -48,7 +50,7 @@ def test_product_price_question():
 # ============================================================
 
 def test_new_order_starts_confirmation_flow():
-    """Customer starts an order and receives confirmation."""
+    """Customer starts a valid order and receives confirmation."""
 
     result = run_kenyabiz(
         "I want to order 2 office chairs."
@@ -81,7 +83,9 @@ def test_complete_order_flow():
         "I want to order 2 office chairs."
     )
 
+    assert result1["destination"] == "order"
     assert result1["status"] == "WAITING"
+
     assert result1["pending_action"] == (
         "ORDER_CONFIRMATION"
     )
@@ -231,6 +235,9 @@ def test_order_can_continue_after_support_question():
     )
 
     assert result1["status"] == "WAITING"
+    assert result1["pending_action"] == (
+        "ORDER_CONFIRMATION"
+    )
 
     # --------------------------------------------------------
     # Step 2: Ask support question
@@ -311,7 +318,9 @@ def create_test_order():
         "I want to order 1 keyboard."
     )
 
+    assert result1["destination"] == "order"
     assert result1["status"] == "WAITING"
+
     assert result1["pending_action"] == (
         "ORDER_CONFIRMATION"
     )
@@ -337,7 +346,9 @@ def create_test_order():
         ),
     )
 
+    assert result2["destination"] == "order"
     assert result2["status"] == "WAITING"
+
     assert result2["pending_action"] == (
         "ORDER_CUSTOMER_NAME"
     )
@@ -372,6 +383,7 @@ def create_test_order():
     assert result3["destination"] == "order"
     assert result3["status"] == "COMPLETED"
     assert result3["order_status"] == "CONFIRMED"
+
     assert result3["order_reference"]
 
     assert re.match(
@@ -395,7 +407,9 @@ def test_invoice_generation_after_order():
 
     order_result = create_test_order()
 
-    order_reference = order_result["order_reference"]
+    order_reference = order_result[
+        "order_reference"
+    ]
 
     # --------------------------------------------------------
     # Request invoice
@@ -438,7 +452,9 @@ def test_payment_request_after_order():
 
     order_result = create_test_order()
 
-    order_reference = order_result["order_reference"]
+    order_reference = order_result[
+        "order_reference"
+    ]
 
     # --------------------------------------------------------
     # Request payment
@@ -453,7 +469,6 @@ def test_payment_request_after_order():
     )
 
     assert payment_result["destination"] == "payment"
-
     assert payment_result["status"] == "COMPLETED"
 
     assert payment_result["payment_reference"]
@@ -469,7 +484,9 @@ def test_payment_request_after_order():
 
     assert payment_result["response"]
 
-    response = payment_result["response"].lower()
+    response = payment_result[
+        "response"
+    ].lower()
 
     assert "payment" in response
 
@@ -487,7 +504,9 @@ def test_complete_payment_flow():
 
     order_result = create_test_order()
 
-    order_reference = order_result["order_reference"]
+    order_reference = order_result[
+        "order_reference"
+    ]
 
     # --------------------------------------------------------
     # Step 2: Create payment request
@@ -527,16 +546,17 @@ def test_complete_payment_flow():
     )
 
     assert completion_result["destination"] == "payment"
-
     assert completion_result["status"] == "COMPLETED"
 
-    assert completion_result["payment_reference"] == (
-        payment_reference
-    )
+    assert completion_result[
+        "payment_reference"
+    ] == payment_reference
 
     assert completion_result["response"]
 
-    response = completion_result["response"].lower()
+    response = completion_result[
+        "response"
+    ].lower()
 
     assert "completed" in response
 
@@ -554,7 +574,9 @@ def test_payment_status_after_completion():
 
     order_result = create_test_order()
 
-    order_reference = order_result["order_reference"]
+    order_reference = order_result[
+        "order_reference"
+    ]
 
     # --------------------------------------------------------
     # Step 2: Create payment request
@@ -592,9 +614,9 @@ def test_payment_status_after_completion():
 
     assert completion_result["status"] == "COMPLETED"
 
-    assert completion_result["payment_reference"] == (
-        payment_reference
-    )
+    assert completion_result[
+        "payment_reference"
+    ] == payment_reference
 
     # --------------------------------------------------------
     # Step 4: Ask for payment status
@@ -609,15 +631,159 @@ def test_payment_status_after_completion():
     )
 
     assert status_result["destination"] == "payment"
-
     assert status_result["status"] == "COMPLETED"
 
-    assert status_result["payment_reference"] == (
-        payment_reference
-    )
+    assert status_result[
+        "payment_reference"
+    ] == payment_reference
 
     assert status_result["response"]
 
-    response = status_result["response"].lower()
+    response = status_result[
+        "response"
+    ].lower()
 
     assert "paid" in response
+
+
+# ============================================================
+# EDGE CASES / FAILURE PATHS
+# ============================================================
+
+def test_order_unknown_product():
+    """
+    Unknown products should be detected before confirmation.
+
+    The system should not create an artificial
+    ORDER_CONFIRMATION step because the requested product
+    does not exist in the catalogue.
+    """
+
+    result = run_kenyabiz(
+        "I want to order 2 smartphones."
+    )
+
+    assert result["destination"] == "order"
+    assert result["status"] == "WAITING"
+
+    # No valid order exists to confirm.
+    assert result["pending_action"] is None
+    assert result["forced_destination"] is None
+    assert result["order_confirmed"] is False
+
+    assert result["response"]
+
+    response = result["response"].lower()
+
+    assert (
+        "not found" in response
+        or "could not be found" in response
+    )
+
+
+def test_order_insufficient_stock():
+    """
+    An order exceeding available stock should be rejected
+    before confirmation.
+    """
+
+    result = run_kenyabiz(
+        "I want to order 1000 office chairs."
+    )
+
+    assert result["destination"] == "order"
+    assert result["status"] == "WAITING"
+
+    # No confirmation should be requested for an order
+    # that cannot be fulfilled.
+    assert result["pending_action"] is None
+    assert result["forced_destination"] is None
+    assert result["order_confirmed"] is False
+
+    assert result["response"]
+
+    response = result["response"].lower()
+
+    assert "stock" in response
+
+
+def test_decline_order():
+    """Customer can decline an order before it is created."""
+
+    # --------------------------------------------------------
+    # Step 1: Start order
+    # --------------------------------------------------------
+
+    result1 = run_kenyabiz(
+        "I want to order 2 office chairs."
+    )
+
+    assert result1["destination"] == "order"
+    assert result1["status"] == "WAITING"
+
+    assert result1["pending_action"] == (
+        "ORDER_CONFIRMATION"
+    )
+
+    assert result1["order_confirmed"] is False
+
+    # --------------------------------------------------------
+    # Step 2: Decline order
+    # --------------------------------------------------------
+
+    result2 = run_kenyabiz(
+        "no",
+        pending_request=result1.get(
+            "pending_request"
+        ),
+        pending_action=result1.get(
+            "pending_action"
+        ),
+        forced_destination=result1.get(
+            "forced_destination"
+        ),
+        order_confirmed=result1.get(
+            "order_confirmed",
+            False,
+        ),
+    )
+
+    assert result2["destination"] == "order"
+    assert result2["status"] == "COMPLETED"
+
+    assert result2["response"]
+
+    # The order workflow should be cleared.
+    assert result2["pending_request"] is None
+    assert result2["pending_action"] is None
+    assert result2["forced_destination"] is None
+    assert result2["order_confirmed"] is False
+
+    response = result2[
+        "response"
+    ].lower()
+
+    assert (
+        "cancel" in response
+        or "not proceed" in response
+        or "not placed" in response
+    )
+
+
+def test_invoice_invalid_order_reference():
+    """
+    An invalid order reference should not generate an invoice.
+    """
+
+    result = run_kenyabiz(
+        "Please generate an invoice for KBA-UNKNOWN."
+    )
+
+    assert result["destination"] == "invoice"
+
+    assert result["status"] in {
+        "WAITING",
+        "ERROR",
+    }
+
+    assert result["response"]

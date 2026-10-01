@@ -49,6 +49,7 @@ VALID_DESTINATIONS = {
 def extract_order_reference(text: str) -> Optional[str]:
     """
     Extract a KenyaBiz order reference from customer text.
+
     Example:
         KBA-20260925-P5EP
     """
@@ -66,6 +67,7 @@ def extract_order_reference(text: str) -> Optional[str]:
 def extract_payment_reference(text: str) -> Optional[str]:
     """
     Extract a simulated M-PESA payment reference.
+
     Example:
         MPSABC123
     """
@@ -113,7 +115,14 @@ def looks_like_invoice_request(text: str) -> bool:
 
 def looks_like_payment_request(text: str) -> bool:
     """
-    Detect payment-related requests.
+    Detect transactional payment requests, payment completion,
+    payment-status requests, and M-PESA references.
+
+    General FAQ questions such as:
+        'What are your payment methods?'
+
+    are intentionally NOT included here and should go to
+    the support agent.
     """
     if not text:
         return False
@@ -125,6 +134,10 @@ def looks_like_payment_request(text: str) -> bool:
     )
 
     payment_phrases = [
+        # ----------------------------------------------------
+        # PAYMENT REQUESTS
+        # ----------------------------------------------------
+
         "make payment",
         "make a payment",
         "i want to pay",
@@ -137,6 +150,38 @@ def looks_like_payment_request(text: str) -> bool:
         "payment for the order",
         "how do i pay",
         "how can i pay",
+
+        # ----------------------------------------------------
+        # PAYMENT COMPLETION
+        # ----------------------------------------------------
+
+        "complete payment",
+        "complete the payment",
+        "confirm payment",
+        "confirm the payment",
+        "i have paid",
+        "payment made",
+        "mark as paid",
+        "i paid",
+        "payment completed",
+        "paid already",
+
+        # ----------------------------------------------------
+        # PAYMENT STATUS
+        # ----------------------------------------------------
+
+        "payment status",
+        "status of payment",
+        "status for payment",
+        "check payment",
+        "check the payment",
+        "check payment status",
+        "check the payment status",
+
+        # ----------------------------------------------------
+        # M-PESA
+        # ----------------------------------------------------
+
         "mpesa",
         "m-pesa",
         "m pesa",
@@ -230,6 +275,7 @@ def looks_like_quotation_request(text: str) -> bool:
 
     Explicit order requests are excluded so that:
         'I want to order 2 chairs'
+
     goes to the order workflow rather than quotation workflow.
     """
     if not text:
@@ -315,6 +361,60 @@ def looks_like_quotation_request(text: str) -> bool:
     )
 
 
+def looks_like_product_price_request(text: str) -> bool:
+    """
+    Detect direct product price or cost questions.
+
+    Explicit order requests are excluded so that:
+        'I want to order 2 chairs'
+
+    still goes to the order workflow.
+    """
+    if not text:
+        return False
+
+    normalized = re.sub(
+        r"\s+",
+        " ",
+        text.lower().strip(),
+    )
+
+    # --------------------------------------------------------
+    # STOCK QUESTIONS HAVE THEIR OWN ROUTING
+    # --------------------------------------------------------
+
+    if is_stock_request(normalized):
+        return False
+
+    # --------------------------------------------------------
+    # EXPLICIT ORDERS GO TO THE ORDER WORKFLOW
+    # --------------------------------------------------------
+
+    try:
+        if is_explicit_order_request(normalized):
+            return False
+    except Exception:
+        pass
+
+    price_phrases = [
+        "price",
+        "cost",
+        "how much",
+        "how much is",
+        "how much does",
+        "what is the price",
+        "what's the price",
+        "what is price",
+        "what is the cost",
+        "what's the cost",
+    ]
+
+    return any(
+        phrase in normalized
+        for phrase in price_phrases
+    )
+
+
 # ============================================================
 # ORDER FLOW HELPERS
 # ============================================================
@@ -323,8 +423,14 @@ def has_active_order_flow(state: KenyaBizState) -> bool:
     """
     Determine whether the customer has an active order workflow.
     """
-    pending_action = state.get("pending_action")
-    forced_destination = state.get("forced_destination")
+    pending_action = state.get(
+        "pending_action"
+    )
+
+    forced_destination = state.get(
+        "forced_destination"
+    )
+
     order_confirmed = state.get(
         "order_confirmed",
         False,
@@ -664,6 +770,21 @@ def supervisor_node(state: KenyaBizState):
         }
 
     # --------------------------------------------------------
+    # DIRECT PRODUCT PRICE
+    # --------------------------------------------------------
+
+    if looks_like_product_price_request(
+        customer_message
+    ):
+        return {
+            "destination": "sales",
+            "routing_reason": (
+                "Message explicitly asks for a "
+                "product price or cost."
+            ),
+        }
+
+    # --------------------------------------------------------
     # QUOTATION
     # --------------------------------------------------------
 
@@ -880,11 +1001,8 @@ def order_node(state: KenyaBizState):
         5. Ask for customer name.
         6. Create the order.
 
-    Important:
-        Product and stock validation happens BEFORE the
-        confirmation step. This prevents the system from asking
-        the customer to confirm an order that cannot actually
-        be fulfilled.
+    Product and stock validation happens BEFORE the
+    confirmation step.
     """
 
     customer_message = state.get(
@@ -963,9 +1081,6 @@ def order_node(state: KenyaBizState):
 
         # ----------------------------------------------------
         # INVALID PRODUCT / STOCK / AMBIGUOUS PRODUCT
-        #
-        # The customer needs to correct the request.
-        # Do NOT create a fake confirmation step.
         # ----------------------------------------------------
 
         if order_status in {
@@ -1090,8 +1205,6 @@ def order_node(state: KenyaBizState):
 
     if order_status in waiting_statuses:
 
-        # Validation errors should not leave the user trapped
-        # in an artificial confirmation step.
         if order_status in {
             "AMBIGUOUS_PRODUCT",
             "PRODUCT_NOT_FOUND",
@@ -1108,7 +1221,6 @@ def order_node(state: KenyaBizState):
                 "order_status": order_status,
             }
 
-        # Normal confirmation waiting state.
         return {
             "response": response,
             "status": "WAITING",
@@ -1249,6 +1361,7 @@ def invoice_node(state: KenyaBizState):
 def payment_node(state: KenyaBizState):
     """
     Handle:
+
         - payment requests
         - payment completion
         - payment status checks
@@ -1289,7 +1402,9 @@ def payment_node(state: KenyaBizState):
 
         completion_phrases = [
             "complete payment",
+            "complete the payment",
             "confirm payment",
+            "confirm the payment",
             "i have paid",
             "payment made",
             "mark as paid",

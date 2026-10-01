@@ -45,6 +45,10 @@ def answer_customer_question(
 
     If retrieved_documents are not supplied, they are
     retrieved automatically.
+
+    If the LLM is unavailable because of a temporary
+    API/rate-limit problem, the function falls back
+    to the retrieved business knowledge.
     """
 
     if not customer_question:
@@ -163,9 +167,61 @@ the business knowledge above.
 
     except Exception as exc:
 
+        # ----------------------------------------------------
+        # LLM ERROR HANDLING
+        # ----------------------------------------------------
+
+        print()
+        print("SUPPORT LLM WARNING:")
+        print(exc)
+
+        error_message = str(exc).lower()
+
+        # ----------------------------------------------------
+        # RATE-LIMIT / API FAILURE FALLBACK
+        # ----------------------------------------------------
+        # If the external LLM service is temporarily
+        # unavailable, use the retrieved business knowledge
+        # instead of failing the customer interaction.
+        # ----------------------------------------------------
+
+        if (
+            "429" in error_message
+            or "rate limit" in error_message
+            or "rate_limit_exceeded" in error_message
+            or "tokens per day" in error_message
+        ):
+
+            if retrieved_documents:
+
+                primary_document = retrieved_documents[0]
+
+                source = primary_document.get(
+                    "source",
+                    "KenyaBiz AI knowledge base"
+                )
+
+                content = primary_document.get(
+                    "content",
+                    ""
+                ).strip()
+
+                if content:
+
+                    return (
+                        "According to the KenyaBiz AI "
+                        "business knowledge base:\n\n"
+                        f"{content}\n\n"
+                        f"Source: {source}"
+                    )
+
+        # ----------------------------------------------------
+        # OTHER LLM ERRORS
+        # ----------------------------------------------------
+
         return (
-            "I encountered an error while preparing "
-            "your response. Please try again."
+            "I encountered an error while processing your "
+            "question. Please try again."
         )
 
 

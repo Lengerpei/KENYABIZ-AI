@@ -46,10 +46,12 @@ VALID_DESTINATIONS = {
 # REFERENCE EXTRACTION
 # ============================================================
 
-def extract_order_reference(
-    text: str,
-) -> Optional[str]:
-
+def extract_order_reference(text: str) -> Optional[str]:
+    """
+    Extract a KenyaBiz order reference from customer text.
+    Example:
+        KBA-20260925-P5EP
+    """
     if not text:
         return None
 
@@ -61,10 +63,12 @@ def extract_order_reference(
     return match.group(0) if match else None
 
 
-def extract_payment_reference(
-    text: str,
-) -> Optional[str]:
-
+def extract_payment_reference(text: str) -> Optional[str]:
+    """
+    Extract a simulated M-PESA payment reference.
+    Example:
+        MPSABC123
+    """
     if not text:
         return None
 
@@ -77,13 +81,13 @@ def extract_payment_reference(
 
 
 # ============================================================
-# INVOICE DETECTION
+# INTENT HELPERS
 # ============================================================
 
-def looks_like_invoice_request(
-    text: str,
-) -> bool:
-
+def looks_like_invoice_request(text: str) -> bool:
+    """
+    Detect invoice, billing, bill, or receipt requests.
+    """
     if not text:
         return False
 
@@ -107,14 +111,10 @@ def looks_like_invoice_request(
     )
 
 
-# ============================================================
-# PAYMENT DETECTION
-# ============================================================
-
-def looks_like_payment_request(
-    text: str,
-) -> bool:
-
+def looks_like_payment_request(text: str) -> bool:
+    """
+    Detect payment-related requests.
+    """
     if not text:
         return False
 
@@ -148,14 +148,10 @@ def looks_like_payment_request(
     )
 
 
-# ============================================================
-# CONFIRMATION DETECTION
-# ============================================================
-
-def contains_confirmation(
-    text: str,
-) -> bool:
-
+def contains_confirmation(text: str) -> bool:
+    """
+    Detect customer confirmation.
+    """
     if not text:
         return False
 
@@ -193,14 +189,13 @@ def contains_confirmation(
     )
 
 
-# ============================================================
-# NEGATIVE / ORDER RESPONSE DETECTION
-# ============================================================
+def contains_order_decline(text: str) -> bool:
+    """
+    Detect a customer declining or cancelling an order.
 
-def contains_order_decline(
-    text: str,
-) -> bool:
-
+    Word-boundary matching is used for short words such as
+    'no' to avoid false matches inside words such as 'not'.
+    """
     if not text:
         return False
 
@@ -210,49 +205,40 @@ def contains_order_decline(
         text.lower().strip(),
     )
 
-    decline_phrases = [
-        "no",
-        "no thanks",
-        "no thank you",
-        "cancel",
-        "cancel it",
-        "cancel the order",
-        "do not proceed",
-        "don't proceed",
-        "do not place",
-        "don't place",
+    decline_patterns = [
+        r"\bno\b",
+        r"\bno thanks\b",
+        r"\bno thank you\b",
+        r"\bcancel\b",
+        r"\bcancel it\b",
+        r"\bcancel the order\b",
+        r"\bdo not proceed\b",
+        r"\bdon't proceed\b",
+        r"\bdo not place\b",
+        r"\bdon't place\b",
     ]
 
     return any(
-        phrase == normalized
-        or phrase in normalized
-        for phrase in decline_phrases
+        re.search(pattern, normalized)
+        for pattern in decline_patterns
     )
 
 
-# ============================================================
-# QUOTATION DETECTION
-# ============================================================
+def looks_like_quotation_request(text: str) -> bool:
+    """
+    Detect quotation/pricing requests involving quantities.
 
-def looks_like_quotation_request(
-    text: str,
-) -> bool:
-
+    Explicit order requests are excluded so that:
+        'I want to order 2 chairs'
+    goes to the order workflow rather than quotation workflow.
+    """
     if not text:
         return False
 
     normalized = text.lower().strip()
 
-    # --------------------------------------------------------
-    # Stock requests must never become quotations.
-    # --------------------------------------------------------
-
     if is_stock_request(normalized):
         return False
-
-    # --------------------------------------------------------
-    # Explicit orders must never become quotations.
-    # --------------------------------------------------------
 
     try:
         if is_explicit_order_request(normalized):
@@ -284,23 +270,25 @@ def looks_like_quotation_request(
         )
     )
 
+    number_words = [
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+    ]
+
     has_number_word = any(
         re.search(
             rf"\b{word}\b",
             normalized,
         )
-        for word in [
-            "one",
-            "two",
-            "three",
-            "four",
-            "five",
-            "six",
-            "seven",
-            "eight",
-            "nine",
-            "ten",
-        ]
+        for word in number_words
     )
 
     has_quantity = (
@@ -328,21 +316,15 @@ def looks_like_quotation_request(
 
 
 # ============================================================
-# ACTIVE ORDER FLOW
+# ORDER FLOW HELPERS
 # ============================================================
 
-def has_active_order_flow(
-    state: KenyaBizState,
-) -> bool:
-
-    pending_action = state.get(
-        "pending_action"
-    )
-
-    forced_destination = state.get(
-        "forced_destination"
-    )
-
+def has_active_order_flow(state: KenyaBizState) -> bool:
+    """
+    Determine whether the customer has an active order workflow.
+    """
+    pending_action = state.get("pending_action")
+    forced_destination = state.get("forced_destination")
     order_confirmed = state.get(
         "order_confirmed",
         False,
@@ -365,25 +347,18 @@ def has_active_order_flow(
     )
 
 
-# ============================================================
-# ORDER CONTINUATION DETECTION
-#
-# IMPORTANT:
-# An active order should only take priority when the new
-# message is actually responding to the current order step.
-#
-# This allows questions such as:
-#   "What are your payment methods?"
-#   "What is your delivery policy?"
-#   "Can you tell me about KenyaBiz?"
-#
-# to be answered without destroying the pending order.
-# ============================================================
+def is_order_continuation(state: KenyaBizState) -> bool:
+    """
+    Determine whether the current message is actually answering
+    the active order step.
 
-def is_order_continuation(
-    state: KenyaBizState,
-) -> bool:
+    This prevents unrelated questions such as:
 
+        'What are your payment methods?'
+        'Tell me about KenyaBiz.'
+
+    from being incorrectly forced into the order workflow.
+    """
     customer_message = state.get(
         "customer_message",
         "",
@@ -403,26 +378,19 @@ def is_order_continuation(
     )
 
     # --------------------------------------------------------
-    # Confirmation stage
+    # ORDER CONFIRMATION
     # --------------------------------------------------------
 
     if pending_action == "ORDER_CONFIRMATION":
 
-        if contains_confirmation(
-            normalized
-        ):
+        if contains_confirmation(normalized):
             return True
 
-        if contains_order_decline(
-            normalized
-        ):
+        if contains_order_decline(normalized):
             return True
 
-        # A new explicit order is a new order request.
         try:
-            if is_explicit_order_request(
-                normalized
-            ):
+            if is_explicit_order_request(normalized):
                 return True
         except Exception:
             pass
@@ -430,10 +398,7 @@ def is_order_continuation(
         return False
 
     # --------------------------------------------------------
-    # Customer-name/details stage
-    #
-    # main.py normally extracts customer details before the
-    # graph is called. These simple patterns provide a fallback.
+    # CUSTOMER NAME / DETAILS
     # --------------------------------------------------------
 
     if pending_action in {
@@ -455,9 +420,6 @@ def is_order_continuation(
         ):
             return True
 
-        # If the message is short and does not look like a
-        # separate business question, allow the Order Agent
-        # to process it as customer information.
         question_terms = [
             "what",
             "how",
@@ -486,13 +448,13 @@ def is_order_continuation(
 
 
 # ============================================================
-# SUPERVISOR
+# SUPERVISOR NODE
 # ============================================================
 
-def supervisor_node(
-    state: KenyaBizState,
-):
-
+def supervisor_node(state: KenyaBizState):
+    """
+    Route each customer message to the appropriate specialist.
+    """
     customer_message = state.get(
         "customer_message",
         "",
@@ -514,9 +476,9 @@ def supervisor_node(
         "forced_destination"
     )
 
-    # ========================================================
-    # 1. EXPLICIT INVOICE
-    # ========================================================
+    # --------------------------------------------------------
+    # INVOICE
+    # --------------------------------------------------------
 
     if looks_like_invoice_request(
         customer_message
@@ -524,14 +486,14 @@ def supervisor_node(
         return {
             "destination": "invoice",
             "routing_reason": (
-                "Customer message explicitly "
-                "requests an invoice, bill, or receipt."
+                "Customer message explicitly requests "
+                "an invoice, bill, or receipt."
             ),
         }
 
-    # ========================================================
-    # 2. EXPLICIT PAYMENT
-    # ========================================================
+    # --------------------------------------------------------
+    # PAYMENT
+    # --------------------------------------------------------
 
     if looks_like_payment_request(
         customer_message
@@ -539,18 +501,16 @@ def supervisor_node(
         return {
             "destination": "payment",
             "routing_reason": (
-                "Customer message explicitly "
-                "requests payment assistance."
+                "Customer message explicitly requests "
+                "payment assistance."
             ),
         }
 
-    # ========================================================
-    # 3. CONTINUE INVOICE
-    # ========================================================
+    # --------------------------------------------------------
+    # CONTINUE INVOICE WORKFLOW
+    # --------------------------------------------------------
 
-    if pending_action == (
-        "INVOICE_ORDER_REFERENCE"
-    ):
+    if pending_action == "INVOICE_ORDER_REFERENCE":
         return {
             "destination": "invoice",
             "routing_reason": (
@@ -559,13 +519,11 @@ def supervisor_node(
             ),
         }
 
-    # ========================================================
-    # 4. CONTINUE PAYMENT REFERENCE
-    # ========================================================
+    # --------------------------------------------------------
+    # CONTINUE PAYMENT WORKFLOW
+    # --------------------------------------------------------
 
-    if pending_action == (
-        "PAYMENT_ORDER_REFERENCE"
-    ):
+    if pending_action == "PAYMENT_ORDER_REFERENCE":
         return {
             "destination": "payment",
             "routing_reason": (
@@ -573,10 +531,6 @@ def supervisor_node(
                 "awaiting an order reference."
             ),
         }
-
-    # ========================================================
-    # 5. CONTINUE PAYMENT
-    # ========================================================
 
     if pending_action in {
         "PAYMENT_STATUS",
@@ -589,9 +543,9 @@ def supervisor_node(
             ),
         }
 
-    # ========================================================
-    # 6. ORDER REFERENCE + INVOICE
-    # ========================================================
+    # --------------------------------------------------------
+    # REFERENCE-BASED INVOICE/PAYMENT REQUESTS
+    # --------------------------------------------------------
 
     order_reference = extract_order_reference(
         customer_message
@@ -611,10 +565,6 @@ def supervisor_node(
             ),
         }
 
-    # ========================================================
-    # 7. ORDER REFERENCE + PAYMENT
-    # ========================================================
-
     if (
         order_reference
         and looks_like_payment_request(
@@ -629,15 +579,11 @@ def supervisor_node(
             ),
         }
 
-    # ========================================================
-    # 8. EXPLICIT NEW ORDER
-    #
-    # IMPORTANT:
-    # This must happen BEFORE quotation detection.
-    # ========================================================
+    # --------------------------------------------------------
+    # EXPLICIT NEW ORDER
+    # --------------------------------------------------------
 
     try:
-
         if is_explicit_order_request(
             customer_message
         ):
@@ -648,16 +594,12 @@ def supervisor_node(
                     "to place or buy an order."
                 ),
             }
-
     except Exception:
         pass
 
-    # ========================================================
-    # 9. CONTINUE ACTIVE ORDER
-    #
-    # Only continue the order if the current message actually
-    # responds to the order step.
-    # ========================================================
+    # --------------------------------------------------------
+    # ACTIVE ORDER CONTINUATION
+    # --------------------------------------------------------
 
     if (
         has_active_order_flow(state)
@@ -671,12 +613,9 @@ def supervisor_node(
             ),
         }
 
-    # ========================================================
-    # 10. FORCED DESTINATION
-    #
-    # Do not blindly force an unrelated question back into
-    # the previous specialist conversation.
-    # ========================================================
+    # --------------------------------------------------------
+    # FORCED DESTINATION
+    # --------------------------------------------------------
 
     if forced_destination:
 
@@ -709,11 +648,9 @@ def supervisor_node(
                     ),
                 }
 
-    # ========================================================
-    # 11. STOCK / AVAILABILITY
-    #
-    # This is BEFORE quotation.
-    # ========================================================
+    # --------------------------------------------------------
+    # STOCK
+    # --------------------------------------------------------
 
     if is_stock_request(
         customer_message
@@ -726,9 +663,9 @@ def supervisor_node(
             ),
         }
 
-    # ========================================================
-    # 12. IMPLICIT QUOTATION
-    # ========================================================
+    # --------------------------------------------------------
+    # QUOTATION
+    # --------------------------------------------------------
 
     if looks_like_quotation_request(
         customer_message
@@ -741,12 +678,11 @@ def supervisor_node(
             ),
         }
 
-    # ========================================================
-    # 13. NORMAL SUPERVISOR
-    # ========================================================
+    # --------------------------------------------------------
+    # LLM SUPERVISOR
+    # --------------------------------------------------------
 
     try:
-
         routing_result = route_customer_request(
             customer_message
         )
@@ -774,7 +710,6 @@ def supervisor_node(
         }
 
     except Exception as exc:
-
         print()
         print("SUPERVISOR ERROR:")
         print(exc)
@@ -792,10 +727,13 @@ def supervisor_node(
 # SUPPORT NODE
 # ============================================================
 
-def support_node(
-    state: KenyaBizState,
-):
+def support_node(state: KenyaBizState):
+    """
+    Handle general company and FAQ questions.
 
+    Existing order/payment/invoice state is preserved so that
+    the customer can return to the workflow afterward.
+    """
     customer_message = state.get(
         "customer_message",
         "",
@@ -805,14 +743,6 @@ def support_node(
         customer_message
     )
 
-    # --------------------------------------------------------
-    # IMPORTANT:
-    # Preserve any pending order workflow.
-    #
-    # The customer may ask a support question while an order
-    # is waiting for confirmation or customer details.
-    # --------------------------------------------------------
-
     return {
         "response": result.get(
             "answer",
@@ -820,7 +750,7 @@ def support_node(
         ),
         "status": "COMPLETED",
 
-        # Do NOT clear pending order information here.
+        # Preserve active workflow state.
         "pending_request": state.get(
             "pending_request"
         ),
@@ -830,7 +760,6 @@ def support_node(
         "forced_destination": state.get(
             "forced_destination"
         ),
-
         "order_confirmed": state.get(
             "order_confirmed",
             False,
@@ -841,7 +770,6 @@ def support_node(
         "order_status": state.get(
             "order_status"
         ),
-
         "invoice_path": state.get(
             "invoice_path"
         ),
@@ -858,10 +786,11 @@ def support_node(
 # SALES NODE
 # ============================================================
 
-def sales_node(
-    state: KenyaBizState,
-):
-
+def sales_node(state: KenyaBizState):
+    """
+    Handle product prices, stock, quotations,
+    and sales-related requests.
+    """
     customer_message = state.get(
         "customer_message",
         "",
@@ -880,8 +809,6 @@ def sales_node(
         "status"
     )
 
-    # IMPORTANT:
-    # Never treat stock checking as an order quotation.
     stock_request = is_stock_request(
         customer_message
     )
@@ -903,6 +830,10 @@ def sales_node(
         }
     )
 
+    # --------------------------------------------------------
+    # QUOTATION / SALES CONFIRMATION
+    # --------------------------------------------------------
+
     if (
         quotation_created
         or (
@@ -914,12 +845,14 @@ def sales_node(
             "response": response,
             "status": "WAITING",
             "pending_request": customer_message,
-            "pending_action": (
-                "ORDER_CONFIRMATION"
-            ),
+            "pending_action": "ORDER_CONFIRMATION",
             "forced_destination": "order",
             "order_confirmed": False,
         }
+
+    # --------------------------------------------------------
+    # NORMAL SALES RESPONSE
+    # --------------------------------------------------------
 
     return {
         "response": response,
@@ -934,9 +867,25 @@ def sales_node(
 # ORDER NODE
 # ============================================================
 
-def order_node(
-    state: KenyaBizState,
-):
+def order_node(state: KenyaBizState):
+    """
+    Handle the complete order workflow.
+
+    Workflow:
+
+        1. Customer requests an order.
+        2. Validate requested products and stock.
+        3. Ask for confirmation.
+        4. Customer confirms.
+        5. Ask for customer name.
+        6. Create the order.
+
+    Important:
+        Product and stock validation happens BEFORE the
+        confirmation step. This prevents the system from asking
+        the customer to confirm an order that cannot actually
+        be fulfilled.
+    """
 
     customer_message = state.get(
         "customer_message",
@@ -956,6 +905,10 @@ def order_node(
         False,
     )
 
+    # ========================================================
+    # DETERMINE CONFIRMATION STATE
+    # ========================================================
+
     confirmed = (
         order_confirmed
         or pending_action in {
@@ -971,7 +924,7 @@ def order_node(
     )
 
     # ========================================================
-    # NEW ORDER / QUOTATION
+    # NEW ORDER REQUEST
     # ========================================================
 
     if (
@@ -989,35 +942,87 @@ def order_node(
             result
         )
 
-        if result.get("status") == (
-            "AWAITING_CONFIRMATION"
-        ):
+        order_status = result.get(
+            "status"
+        )
+
+        # ----------------------------------------------------
+        # VALID ORDER -> WAIT FOR CONFIRMATION
+        # ----------------------------------------------------
+
+        if order_status == "AWAITING_CONFIRMATION":
             return {
                 "response": response,
                 "status": "WAITING",
                 "pending_request": customer_message,
-                "pending_action": (
-                    "ORDER_CONFIRMATION"
-                ),
+                "pending_action": "ORDER_CONFIRMATION",
                 "forced_destination": "order",
                 "order_confirmed": False,
                 "order_status": "PENDING",
             }
 
+        # ----------------------------------------------------
+        # INVALID PRODUCT / STOCK / AMBIGUOUS PRODUCT
+        #
+        # The customer needs to correct the request.
+        # Do NOT create a fake confirmation step.
+        # ----------------------------------------------------
+
+        if order_status in {
+            "PRODUCT_NOT_FOUND",
+            "INSUFFICIENT_STOCK",
+            "AMBIGUOUS_PRODUCT",
+        }:
+            return {
+                "response": response,
+                "status": "WAITING",
+                "pending_request": None,
+                "pending_action": None,
+                "forced_destination": None,
+                "order_confirmed": False,
+                "order_status": order_status,
+            }
+
+        # ----------------------------------------------------
+        # OTHER ERROR
+        # ----------------------------------------------------
+
         return {
             "response": response,
             "status": "ERROR",
-            "pending_request": customer_message,
+            "pending_request": None,
             "pending_action": None,
             "forced_destination": None,
             "order_confirmed": False,
-            "order_status": result.get(
-                "status"
-            ),
+            "order_status": order_status,
         }
 
     # ========================================================
-    # CONTINUE ORDER
+    # HANDLE ORDER DECLINE / CANCELLATION
+    # ========================================================
+
+    if (
+        existing_pending_request
+        and contains_order_decline(
+            customer_message
+        )
+    ):
+        return {
+            "response": (
+                "Your order has been cancelled. "
+                "No order was placed."
+            ),
+            "status": "COMPLETED",
+            "pending_request": None,
+            "pending_action": None,
+            "forced_destination": None,
+            "order_confirmed": False,
+            "order_reference": None,
+            "order_status": "CANCELLED",
+        }
+
+    # ========================================================
+    # PROCESS EXISTING ORDER FLOW
     # ========================================================
 
     result = process_order(
@@ -1029,6 +1034,10 @@ def order_node(
     response = format_order_response(
         result
     )
+
+    # ========================================================
+    # EXTRACT ORDER REFERENCE
+    # ========================================================
 
     order_reference = result.get(
         "order_reference"
@@ -1053,31 +1062,23 @@ def order_node(
     )
 
     # ========================================================
-    # CUSTOMER DETAILS REQUIRED
+    # CUSTOMER NAME REQUIRED
     # ========================================================
 
-    if order_status == (
-        "CUSTOMER_DETAILS_REQUIRED"
-    ):
+    if order_status == "CUSTOMER_DETAILS_REQUIRED":
         return {
             "response": response,
             "status": "WAITING",
-            "pending_request": (
-                existing_pending_request
-            ),
-            "pending_action": (
-                "ORDER_CUSTOMER_NAME"
-            ),
+            "pending_request": existing_pending_request,
+            "pending_action": "ORDER_CUSTOMER_NAME",
             "forced_destination": "order",
             "order_confirmed": True,
             "order_reference": order_reference,
-            "order_status": (
-                "CUSTOMER_DETAILS_REQUIRED"
-            ),
+            "order_status": "CUSTOMER_DETAILS_REQUIRED",
         }
 
     # ========================================================
-    # ORDER STILL WAITING
+    # VALIDATION / CONFIRMATION WAITING STATES
     # ========================================================
 
     waiting_statuses = {
@@ -1089,6 +1090,25 @@ def order_node(
 
     if order_status in waiting_statuses:
 
+        # Validation errors should not leave the user trapped
+        # in an artificial confirmation step.
+        if order_status in {
+            "AMBIGUOUS_PRODUCT",
+            "PRODUCT_NOT_FOUND",
+            "INSUFFICIENT_STOCK",
+        }:
+            return {
+                "response": response,
+                "status": "WAITING",
+                "pending_request": None,
+                "pending_action": None,
+                "forced_destination": None,
+                "order_confirmed": False,
+                "order_reference": order_reference,
+                "order_status": order_status,
+            }
+
+        # Normal confirmation waiting state.
         return {
             "response": response,
             "status": "WAITING",
@@ -1096,9 +1116,7 @@ def order_node(
                 existing_pending_request
                 or customer_message
             ),
-            "pending_action": (
-                "ORDER_CONFIRMATION"
-            ),
+            "pending_action": "ORDER_CONFIRMATION",
             "forced_destination": "order",
             "order_confirmed": confirmed,
             "order_reference": order_reference,
@@ -1106,11 +1124,10 @@ def order_node(
         }
 
     # ========================================================
-    # SUCCESS
+    # SUCCESSFUL ORDER
     # ========================================================
 
     if order_status == "SUCCESS":
-
         return {
             "response": response,
             "status": "COMPLETED",
@@ -1123,15 +1140,13 @@ def order_node(
         }
 
     # ========================================================
-    # ERROR
+    # UNEXPECTED ERROR
     # ========================================================
 
     return {
         "response": response,
         "status": "ERROR",
-        "pending_request": (
-            existing_pending_request
-        ),
+        "pending_request": existing_pending_request,
         "pending_action": pending_action,
         "forced_destination": None,
         "order_confirmed": confirmed,
@@ -1144,10 +1159,10 @@ def order_node(
 # INVOICE NODE
 # ============================================================
 
-def invoice_node(
-    state: KenyaBizState,
-):
-
+def invoice_node(state: KenyaBizState):
+    """
+    Generate an invoice for an existing order.
+    """
     customer_message = state.get(
         "customer_message",
         "",
@@ -1162,8 +1177,11 @@ def invoice_node(
             "order_reference"
         )
 
-    if not order_reference:
+    # --------------------------------------------------------
+    # ORDER REFERENCE REQUIRED
+    # --------------------------------------------------------
 
+    if not order_reference:
         return {
             "response": (
                 "I can help generate the invoice. "
@@ -1177,6 +1195,10 @@ def invoice_node(
             ),
             "forced_destination": "invoice",
         }
+
+    # --------------------------------------------------------
+    # GENERATE INVOICE
+    # --------------------------------------------------------
 
     result = process_invoice_request(
         order_reference
@@ -1195,7 +1217,6 @@ def invoice_node(
         "COMPLETED",
         None,
     }:
-
         return {
             "response": response,
             "status": "ERROR",
@@ -1225,9 +1246,13 @@ def invoice_node(
 # PAYMENT NODE
 # ============================================================
 
-def payment_node(
-    state: KenyaBizState,
-):
+def payment_node(state: KenyaBizState):
+    """
+    Handle:
+        - payment requests
+        - payment completion
+        - payment status checks
+    """
 
     customer_message = state.get(
         "customer_message",
@@ -1241,10 +1266,6 @@ def payment_node(
     payment_reference = extract_payment_reference(
         customer_message
     )
-
-    # ========================================================
-    # RESTORE SAVED REFERENCES
-    # ========================================================
 
     if not order_reference:
         order_reference = state.get(
@@ -1282,9 +1303,9 @@ def payment_node(
             for phrase in completion_phrases
         )
 
-        # ====================================================
+        # ----------------------------------------------------
         # COMPLETE PAYMENT
-        # ====================================================
+        # ----------------------------------------------------
 
         if payment_completion_requested:
 
@@ -1316,18 +1337,16 @@ def payment_node(
             return {
                 "response": response,
                 "status": "COMPLETED",
-                "payment_reference": (
-                    payment_reference
-                ),
+                "payment_reference": payment_reference,
                 "payment_status": payment_status,
                 "order_reference": order_reference,
                 "pending_action": None,
                 "forced_destination": None,
             }
 
-        # ====================================================
+        # ----------------------------------------------------
         # CHECK PAYMENT STATUS
-        # ====================================================
+        # ----------------------------------------------------
 
         result = check_payment_status(
             payment_reference
@@ -1357,9 +1376,7 @@ def payment_node(
         return {
             "response": response,
             "status": "COMPLETED",
-            "payment_reference": (
-                payment_reference
-            ),
+            "payment_reference": payment_reference,
             "payment_status": payment_status,
             "order_reference": order_reference,
             "pending_action": None,
@@ -1367,7 +1384,7 @@ def payment_node(
         }
 
     # ========================================================
-    # ORDER REFERENCE AVAILABLE
+    # PAYMENT REQUEST WITH ORDER REFERENCE
     # ========================================================
 
     if order_reference:
@@ -1396,7 +1413,6 @@ def payment_node(
             payment_data,
             dict,
         ):
-
             payment_reference = payment_data.get(
                 "payment_reference",
                 payment_reference,
@@ -1411,16 +1427,14 @@ def payment_node(
             "response": response,
             "status": "COMPLETED",
             "order_reference": order_reference,
-            "payment_reference": (
-                payment_reference
-            ),
+            "payment_reference": payment_reference,
             "payment_status": payment_status,
             "pending_action": None,
             "forced_destination": None,
         }
 
     # ========================================================
-    # NEED ORDER REFERENCE
+    # PAYMENT REQUEST WITHOUT ORDER REFERENCE
     # ========================================================
 
     return {
@@ -1439,13 +1453,13 @@ def payment_node(
 
 
 # ============================================================
-# ROUTER
+# SPECIALIST ROUTER
 # ============================================================
 
-def specialist_router(
-    state: KenyaBizState,
-):
-
+def specialist_router(state: KenyaBizState):
+    """
+    Select the specialist node based on supervisor routing.
+    """
     destination = state.get(
         "destination",
         "support",
@@ -1468,10 +1482,17 @@ def specialist_router(
 # ============================================================
 
 def build_graph():
+    """
+    Build and compile the KenyaBiz multi-agent graph.
+    """
 
     graph = StateGraph(
         KenyaBizState
     )
+
+    # --------------------------------------------------------
+    # NODES
+    # --------------------------------------------------------
 
     graph.add_node(
         "supervisor",
@@ -1503,10 +1524,18 @@ def build_graph():
         payment_node,
     )
 
+    # --------------------------------------------------------
+    # START -> SUPERVISOR
+    # --------------------------------------------------------
+
     graph.add_edge(
         START,
         "supervisor",
     )
+
+    # --------------------------------------------------------
+    # SUPERVISOR -> SPECIALIST
+    # --------------------------------------------------------
 
     graph.add_conditional_edges(
         "supervisor",
@@ -1519,6 +1548,10 @@ def build_graph():
             "payment": "payment",
         },
     )
+
+    # --------------------------------------------------------
+    # SPECIALISTS -> END
+    # --------------------------------------------------------
 
     graph.add_edge(
         "support",
@@ -1548,11 +1581,15 @@ def build_graph():
     return graph.compile()
 
 
+# ============================================================
+# COMPILED APPLICATION
+# ============================================================
+
 app = build_graph()
 
 
 # ============================================================
-# PUBLIC GRAPH FUNCTION
+# PUBLIC RUN FUNCTION
 # ============================================================
 
 def run_kenyabiz(
@@ -1568,39 +1605,27 @@ def run_kenyabiz(
     payment_reference=None,
     payment_status=None,
 ):
+    """
+    Run the KenyaBiz multi-agent assistant.
+
+    The optional state parameters allow main.py and workflow
+    tests to continue multi-turn conversations.
+    """
 
     initial_state = {
         "customer_message": customer_message,
         "conversation_history": (
             conversation_history or []
         ),
-        "forced_destination": (
-            forced_destination
-        ),
-        "pending_request": (
-            pending_request
-        ),
-        "pending_action": (
-            pending_action
-        ),
-        "order_confirmed": (
-            order_confirmed
-        ),
-        "order_reference": (
-            order_reference
-        ),
-        "order_status": (
-            order_status
-        ),
-        "invoice_path": (
-            invoice_path
-        ),
-        "payment_reference": (
-            payment_reference
-        ),
-        "payment_status": (
-            payment_status
-        ),
+        "forced_destination": forced_destination,
+        "pending_request": pending_request,
+        "pending_action": pending_action,
+        "order_confirmed": order_confirmed,
+        "order_reference": order_reference,
+        "order_status": order_status,
+        "invoice_path": invoice_path,
+        "payment_reference": payment_reference,
+        "payment_status": payment_status,
     }
 
     return app.invoke(

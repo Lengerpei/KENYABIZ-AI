@@ -7,5 +7,4 @@ pandas
 pydantic
 streamlit
 reportlab
-faiss-cpu
-sentence-transformers
+pytest

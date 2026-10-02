@@ -83,6 +83,115 @@ def extract_payment_reference(text: str) -> Optional[str]:
 
 
 # ============================================================
+# CUSTOMER NAME EXTRACTION
+# ============================================================
+
+def extract_customer_name_from_message(
+    text: str,
+) -> Optional[str]:
+    """
+    Extract a customer name from an order-workflow message.
+
+    This handles messages such as:
+
+        Ambrose Lengerpei
+
+        My name is Ambrose Lengerpei
+
+        Customer name: Ambrose Lengerpei
+
+    It is particularly important for main.py, which may send
+    the original order request together with the customer name.
+    """
+
+    if not text:
+        return None
+
+    text = text.strip()
+
+    # --------------------------------------------------------
+    # EXPLICIT "CUSTOMER NAME:" FORMAT
+    # --------------------------------------------------------
+
+    match = re.search(
+        r"(?:customer\s+name|customer's\s+name)\s*:\s*"
+        r"([A-Za-z]+(?:\s+[A-Za-z]+){0,4})",
+        text,
+        re.IGNORECASE,
+    )
+
+    if match:
+        return match.group(1).strip()
+
+    # --------------------------------------------------------
+    # EXPLICIT NAME PHRASES
+    # --------------------------------------------------------
+
+    patterns = [
+        r"\bmy\s+name\s+is\s+"
+        r"([A-Za-z]+(?:\s+[A-Za-z]+){0,4})\b",
+
+        r"\bname\s+is\s+"
+        r"([A-Za-z]+(?:\s+[A-Za-z]+){0,4})\b",
+
+        r"\bi\s+am\s+"
+        r"([A-Za-z]+(?:\s+[A-Za-z]+){0,4})\b",
+
+        r"\bi'm\s+"
+        r"([A-Za-z]+(?:\s+[A-Za-z]+){0,4})\b",
+    ]
+
+    for pattern in patterns:
+        match = re.search(
+            pattern,
+            text,
+            re.IGNORECASE,
+        )
+
+        if match:
+            return match.group(1).strip()
+
+    # --------------------------------------------------------
+    # STANDALONE NAME
+    # --------------------------------------------------------
+
+    normalized = re.sub(
+        r"\s+",
+        " ",
+        text,
+    ).strip()
+
+    if (
+        len(normalized.split()) <= 5
+        and re.fullmatch(
+            r"[A-Za-z]+(?:\s+[A-Za-z]+){0,4}",
+            normalized,
+        )
+    ):
+        excluded_words = {
+            "yes",
+            "no",
+            "okay",
+            "ok",
+            "confirm",
+            "confirmed",
+            "proceed",
+            "cancel",
+            "invoice",
+            "payment",
+            "order",
+            "thanks",
+            "thank",
+            "please",
+        }
+
+        if normalized.lower() not in excluded_words:
+            return normalized
+
+    return None
+
+
+# ============================================================
 # INTENT HELPERS
 # ============================================================
 
@@ -121,8 +230,7 @@ def looks_like_payment_request(text: str) -> bool:
     General FAQ questions such as:
         'What are your payment methods?'
 
-    are intentionally NOT included here and should go to
-    the support agent.
+    are intentionally NOT included here.
     """
     if not text:
         return False
@@ -264,7 +372,10 @@ def contains_order_decline(text: str) -> bool:
     ]
 
     return any(
-        re.search(pattern, normalized)
+        re.search(
+            pattern,
+            normalized,
+        )
         for pattern in decline_patterns
     )
 
@@ -274,9 +385,10 @@ def looks_like_quotation_request(text: str) -> bool:
     Detect quotation/pricing requests involving quantities.
 
     Explicit order requests are excluded so that:
+
         'I want to order 2 chairs'
 
-    goes to the order workflow rather than quotation workflow.
+    goes to the order workflow.
     """
     if not text:
         return False
@@ -366,6 +478,7 @@ def looks_like_product_price_request(text: str) -> bool:
     Detect direct product price or cost questions.
 
     Explicit order requests are excluded so that:
+
         'I want to order 2 chairs'
 
     still goes to the order workflow.
@@ -419,7 +532,9 @@ def looks_like_product_price_request(text: str) -> bool:
 # ORDER FLOW HELPERS
 # ============================================================
 
-def has_active_order_flow(state: KenyaBizState) -> bool:
+def has_active_order_flow(
+    state: KenyaBizState,
+) -> bool:
     """
     Determine whether the customer has an active order workflow.
     """
@@ -453,7 +568,9 @@ def has_active_order_flow(state: KenyaBizState) -> bool:
     )
 
 
-def is_order_continuation(state: KenyaBizState) -> bool:
+def is_order_continuation(
+    state: KenyaBizState,
+) -> bool:
     """
     Determine whether the current message is actually answering
     the active order step.
@@ -512,9 +629,11 @@ def is_order_continuation(state: KenyaBizState) -> bool:
         "ORDER_CUSTOMER_DETAILS",
     }:
 
+        # Explicit name formats
         name_patterns = [
             r"^(?:my name is|name is|i am|i'm)\s+.+$",
             r"^this is\s+.+$",
+            r"^customer\s+name\s*:\s*.+$",
         ]
 
         if any(
@@ -524,6 +643,14 @@ def is_order_continuation(state: KenyaBizState) -> bool:
             )
             for pattern in name_patterns
         ):
+            return True
+
+        # General standalone customer name
+        name = extract_customer_name_from_message(
+            customer_message
+        )
+
+        if name:
             return True
 
         question_terms = [
@@ -557,7 +684,9 @@ def is_order_continuation(state: KenyaBizState) -> bool:
 # SUPERVISOR NODE
 # ============================================================
 
-def supervisor_node(state: KenyaBizState):
+def supervisor_node(
+    state: KenyaBizState,
+):
     """
     Route each customer message to the appropriate specialist.
     """
@@ -848,7 +977,9 @@ def supervisor_node(state: KenyaBizState):
 # SUPPORT NODE
 # ============================================================
 
-def support_node(state: KenyaBizState):
+def support_node(
+    state: KenyaBizState,
+):
     """
     Handle general company and FAQ questions.
 
@@ -907,7 +1038,9 @@ def support_node(state: KenyaBizState):
 # SALES NODE
 # ============================================================
 
-def sales_node(state: KenyaBizState):
+def sales_node(
+    state: KenyaBizState,
+):
     """
     Handle product prices, stock, quotations,
     and sales-related requests.
@@ -988,7 +1121,9 @@ def sales_node(state: KenyaBizState):
 # ORDER NODE
 # ============================================================
 
-def order_node(state: KenyaBizState):
+def order_node(
+    state: KenyaBizState,
+):
     """
     Handle the complete order workflow.
 
@@ -1137,11 +1272,31 @@ def order_node(state: KenyaBizState):
         }
 
     # ========================================================
+    # IMPORTANT: CLEAN CUSTOMER NAME BEFORE PROCESSING
+    # ========================================================
+
+    order_message = customer_message
+
+    if pending_action in {
+        "ORDER_CUSTOMER_NAME",
+        "ORDER_CUSTOMER_DETAILS",
+    }:
+        customer_name = extract_customer_name_from_message(
+            customer_message
+        )
+
+        if customer_name:
+            # process_order() expects the customer message
+            # containing the name. The order items are taken
+            # from existing_pending_request.
+            order_message = customer_name
+
+    # ========================================================
     # PROCESS EXISTING ORDER FLOW
     # ========================================================
 
     result = process_order(
-        customer_message,
+        order_message,
         confirmed=confirmed,
         pending_request=existing_pending_request,
     )
@@ -1271,7 +1426,9 @@ def order_node(state: KenyaBizState):
 # INVOICE NODE
 # ============================================================
 
-def invoice_node(state: KenyaBizState):
+def invoice_node(
+    state: KenyaBizState,
+):
     """
     Generate an invoice for an existing order.
     """
@@ -1358,7 +1515,9 @@ def invoice_node(state: KenyaBizState):
 # PAYMENT NODE
 # ============================================================
 
-def payment_node(state: KenyaBizState):
+def payment_node(
+    state: KenyaBizState,
+):
     """
     Handle:
 
@@ -1571,7 +1730,9 @@ def payment_node(state: KenyaBizState):
 # SPECIALIST ROUTER
 # ============================================================
 
-def specialist_router(state: KenyaBizState):
+def specialist_router(
+    state: KenyaBizState,
+):
     """
     Select the specialist node based on supervisor routing.
     """
